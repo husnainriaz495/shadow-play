@@ -1,0 +1,29 @@
+# SECURITY.md rule 2 requires every entry in this first block.
+# Secrets must never reach a public repo, and build output must never be
+# committed (it would clash on every pull between shifts).
+
+node_modules/
+dist/
+.env
+.env.*
+.vercel/
+*.log
+.DS_Store
+
+# Build leftovers
+dist-ssr/
+*.local
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Windows
+Thumbs.db
+desktop.ini

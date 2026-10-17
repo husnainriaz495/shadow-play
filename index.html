@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Shadow Play</title>
+
+    <!--
+        The tab icon. ASSETS.md asks for a lit-candle icon at public/favicon.png;
+        until someone draws one this is the placeholder that shipped with the
+        Phaser template.
+    -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <link rel="stylesheet" href="/style.css">
+
+    <!--
+        SECURITY.md rule 7: NO third-party scripts, ever. No CDN, no analytics,
+        no fonts linked from Google. Everything is bundled by Vite and served
+        from our own domain, and the only script on the page is our own entry
+        point below. It has no inline code, which is what keeps it legal under
+        the Content-Security-Policy in SECURITY.md rule 10 (script-src 'self').
+
+        The meta description, og:image link preview and the CSS loading screen
+        are milestone M5 (PRD 4.10, "page polish").
+    -->
+</head>
+
+<body>
+    <div id="app">
+        <div id="game-container"></div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
