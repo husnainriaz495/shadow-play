@@ -1,0 +1,46 @@
+/*
+    The page around the game canvas. Phaser draws everything else.
+
+    The canvas is scaled with Phaser.Scale.FIT, so the page only has to give
+    it a centred, black, non-scrolling stage to sit in.
+*/
+
+body {
+    margin: 0;
+    padding: 0;
+
+    /* Backstage dark, so the letterbox bars look intentional. */
+    background-color: #061014;   /* palette.frame (PALETTE.md) */
+    color: #f5e6c8;              /* palette.title */
+
+    /* Matches CONFIG.text fontFamily, for any HTML text we ever add. */
+    font-family: Theatre, Georgia, serif;
+}
+
+#app {
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/*
+    THE THEATRE FONT (ASSETS.md).
+
+    Uncomment this block ONLY once public/assets/fonts/theatre.woff2 really
+    exists. Declaring an @font-face for a missing file makes the browser
+    request it and log a red 404, and CODE_RULES.md rule 11 says the console
+    must be clean. Until then "Theatre" simply does not resolve and every
+    text object falls back to Georgia, which is exactly what we want.
+
+    SECURITY.md rule 7: download the .woff2 into public/assets/fonts/.
+    Never link to fonts.googleapis.com.
+
+@font-face {
+    font-family: 'Theatre';
+    src: url('/assets/fonts/theatre.woff2') format('woff2');
+    font-display: swap;
+}
+*/
