@@ -1,7 +1,9 @@
 import { CONFIG } from '../config.js';
-import { DEPTHS, GAME_WIDTH, GAME_HEIGHT } from '../core/constants.js';
+import { DEPTHS, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE } from '../core/constants.js';
 import { Flicker } from '../systems/Flicker.js';
-import { clamp } from '../core/helpers.js';
+import { clamp, mixColors } from '../core/helpers.js';
+import { ASSETS } from '../assets.js';
+import { ACTS } from '../levels/index.js';
 
 /** One 60 Hz frame, in ms -- the unit CONFIG.glow.followPerFrame is given in. */
 const FRAME_MS = 1000 / 60;
@@ -27,6 +29,7 @@ export class PaperScreen {
      * @param {{x:number, y:number}} source where the candle starts
      */
     constructor(scene, source = CONFIG.glow.titleSource) {
+        this.scene = scene;
         const darkest = CONFIG.palette.paperStops[CONFIG.palette.paperStops.length - 1];
 
         // Everything the light does not reach is this dark teal, which is
@@ -60,6 +63,69 @@ export class PaperScreen {
 
         /** Bigger when the candle is close (Huge), smaller when far (Tiny). */
         this.glowScale = CONFIG.glow.scaleNormal;
+
+        /**
+         * A short multiplier on the light, for the "breath" when the puppet
+         * changes size (PRD 5.1). 1 is normal; systems/SizeEffects.js
+         * tweens it up and back. It is separate from glowScale so the
+         * breath can overshoot without disturbing where the light settles.
+         */
+        this.breath = 1;
+
+        /** 0 = no fire, 1 = all the act's paper alight: warms the light. */
+        this.heat = 0;
+        this.shownHeat = 0;
+
+        /**
+         * 0 calm, 1 full gust: the candle is being blown sideways, so the
+         * pool of light slides downwind and dims (systems/DraftWind.js).
+         */
+        this.windLean = 0;
+    }
+
+    /**
+     * Which backdrop an act uses: the one its level file names, or by
+     * default bg_act<number>. The finale names bg_act5 (the theatre),
+     * because with Acts 3-4 cut it is only the third act played.
+     * Undefined if that image is not ready, so the act plays on plain paper.
+     */
+    static backdropFor(actNumber) {
+        const key = ACTS[actNumber - 1]?.backdrop ?? `bg_act${actNumber}`;
+
+        return ASSETS.backdrops.find((entry) => entry.key === key && entry.ready);
+    }
+
+    /**
+     * Queue this act's backdrop, if it has one and it is not loaded yet.
+     * Call from the scene's preload(): it runs every time an act starts,
+     * however the act was reached (door, R, title, dev keys).
+     */
+    static queueBackdrop(scene, actNumber) {
+        const backdrop = PaperScreen.backdropFor(actNumber);
+
+        if (backdrop && !scene.textures.exists(backdrop.key)) {
+            scene.load.image(backdrop.key, backdrop.path);
+        }
+    }
+
+    /**
+     * Paint the act's scenery faintly on the paper: above the candle's
+     * light, below the walls (DEPTHS.BACKDROP), so the light falls on it.
+     */
+    showBackdrop(actNumber) {
+        const backdrop = PaperScreen.backdropFor(actNumber);
+        if (!backdrop || !this.scene.textures.exists(backdrop.key)) return;
+
+        // Normally it fills the screen; a level can instead stand it ON its
+        // floor (`backdropRestsOnRow`: its bottom edge on that row's top).
+        const restsOn = ACTS[actNumber - 1]?.backdropRestsOnRow;
+        const bottom = restsOn === undefined ? GAME_HEIGHT : restsOn * TILE_SIZE;
+
+        this.scene.add.image(0, bottom, backdrop.key)
+            .setOrigin(0, 1)
+            .setDepth(DEPTHS.BACKDROP)
+            .setAlpha(CONFIG.backdrop.alpha)
+            .setTint(CONFIG.backdrop.tint);
     }
 
     /**
@@ -80,6 +146,19 @@ export class PaperScreen {
         this.lightLevel = clamp(level, 0, 1);
     }
 
+    /**
+     * How much of the act's paper has caught fire, 0 to 1 (FireGrid). The
+     * candle's light on the paper warms towards red-orange as it rises.
+     */
+    setHeat(heat) {
+        this.heat = clamp(heat, 0, 1);
+    }
+
+    /** How hard the draft is pushing the flame over: 0 to 1. */
+    setWindLean(lean) {
+        this.windLean = clamp(lean, 0, 1);
+    }
+
     /** How close the candle is held -- see CONFIG.glow.scaleTiny/Normal/Huge. */
     setGlowScale(scale) {
         this.glowScale = scale;
@@ -94,18 +173,34 @@ export class PaperScreen {
         // keeps the lag identical at 60 Hz and 144 Hz (PRD 4.8).
         const step = 1 - Math.pow(1 - CONFIG.glow.followPerFrame, delta / FRAME_MS);
 
-        this.glow.x += (this.target.x - this.glow.x) * step;
+        // A gust drags the pool of light downwind of the candle itself.
+        const lean = this.windLean * CONFIG.glow.windLeanPx;
+
+        this.glow.x += (this.target.x + lean - this.glow.x) * step;
         this.glow.y += (this.target.y - this.glow.y) * step;
 
         // The texture is small; this stretches it to the configured radius.
         const fullSize = (CONFIG.glow.radius * 2) / CONFIG.glow.textureSize;
-        this.glow.setScale(fullSize * this.glowScale * this.sizeFlicker.valueAt(time));
+        this.glow.setScale(fullSize * this.glowScale * this.breath * this.sizeFlicker.valueAt(time));
 
         // As the wax runs low the light fades towards the dark base.
         const brightness = CONFIG.glow.lowWaxDimming +
             (1 - CONFIG.glow.lowWaxDimming) * this.lightLevel;
 
-        this.glow.setAlpha(clamp(brightness * this.brightFlicker.valueAt(time), 0, 1));
+        // ...and a flame bent sideways throws less light forward.
+        const windDim = 1 - this.windLean * CONFIG.glow.windDim;
+
+        this.glow.setAlpha(clamp(
+            brightness * this.breath * windDim * this.brightFlicker.valueAt(time), 0, 1));
+
+        // Ease towards the fire's heat, never jump; only re-tint when it moves.
+        const { heatTint, heatTintMax, heatEasePerFrame } = CONFIG.fire;
+        if (this.shownHeat !== this.heat) {
+            const ease = 1 - Math.pow(1 - heatEasePerFrame, delta / FRAME_MS);
+            this.shownHeat += (this.heat - this.shownHeat) * ease;
+            if (Math.abs(this.heat - this.shownHeat) < 0.001) this.shownHeat = this.heat;
+            this.glow.setTint(mixColors(0xffffff, heatTint, this.shownHeat * heatTintMax));
+        }
         this.dimmer.setAlpha((1 - this.lightLevel) * CONFIG.glow.maxDim);
     }
 }

@@ -42,12 +42,12 @@ export const ASSETS = {
         { key: 'gate',          path: 'assets/images/gate.png',          ready: true , w: 40,  h: 120 },
         { key: 'switch',        path: 'assets/images/switch.png',        ready: true , w: 40,  h: 40,  frames: 2 },
         { key: 'wax',           path: 'assets/images/wax.png',           ready: false, w: 24,  h: 32 },
-        { key: 'lantern',       path: 'assets/images/lantern.png',       ready: false, w: 40,  h: 40,  frames: 2 },
-        { key: 'curtain_left',  path: 'assets/images/curtain_left.png',  ready: false, w: 660, h: 720 },
-        { key: 'curtain_right', path: 'assets/images/curtain_right.png', ready: false, w: 660, h: 720 },
-        { key: 'logo',          path: 'assets/images/logo.png',          ready: false, w: 800, h: 240 },
-        { key: 'pointer_hand',  path: 'assets/images/pointer_hand.png',  ready: false, w: 64,  h: 64 },
-        { key: 'gamepad_icons', path: 'assets/images/gamepad_icons.png', ready: false, w: 64,  h: 64,  frames: 4 }
+        { key: 'lantern',       path: 'assets/images/lantern.png',       ready: true , w: 40,  h: 40,  frames: 2 },
+        { key: 'curtain_left',  path: 'assets/images/curtain_left.png',  ready: true , w: 660, h: 720 },
+        { key: 'curtain_right', path: 'assets/images/curtain_right.png', ready: true , w: 660, h: 720 },
+        { key: 'logo',          path: 'assets/images/logo.png',          ready: true , w: 800, h: 240 },
+        { key: 'pointer_hand',  path: 'assets/images/pointer_hand.png',  ready: true , w: 64,  h: 64 },
+        { key: 'gamepad_icons', path: 'assets/images/gamepad_icons.png', ready: true , w: 64,  h: 64,  frames: 4 }
     ],
 
     /**
@@ -56,11 +56,11 @@ export const ASSETS = {
      * with no file the act simply plays on plain paper.
      */
     backdrops: [
-        { key: 'bg_act1', path: 'assets/images/bg_act1.png', ready: false, w: 1280, h: 720 },
-        { key: 'bg_act2', path: 'assets/images/bg_act2.png', ready: false, w: 1280, h: 720 },
-        { key: 'bg_act3', path: 'assets/images/bg_act3.png', ready: false, w: 1280, h: 720 },
-        { key: 'bg_act4', path: 'assets/images/bg_act4.png', ready: false, w: 1280, h: 720 },
-        { key: 'bg_act5', path: 'assets/images/bg_act5.png', ready: false, w: 1280, h: 720 }
+        { key: 'bg_act1', path: 'assets/images/bg_act1.png', ready: true , w: 1280, h: 720 },
+        { key: 'bg_act2', path: 'assets/images/bg_act2.png', ready: true , w: 1280, h: 720 },
+        { key: 'bg_act3', path: 'assets/images/bg_act3.png', ready: true , w: 1280, h: 720 },
+        { key: 'bg_act4', path: 'assets/images/bg_act4.png', ready: true , w: 1280, h: 720 },
+        { key: 'bg_act5', path: 'assets/images/bg_act5.png', ready: true , w: 1280, h: 720 }
     ],
 
     /**
@@ -135,7 +135,11 @@ const ready = (list) => list.filter((entry) => entry.ready);
  */
 export const PRELOAD_LIST = {
     images: ready(ASSETS.images),
-    audio: ready([...ASSETS.sfx, ASSETS.music[0]])
+    audio: ready([...ASSETS.sfx, ASSETS.music[0]]),
+
+    // Act 1's backdrop comes with the first load; later acts load theirs
+    // just before they start (objects/PaperScreen.js queueBackdrop).
+    backdrops: [backdropForAct(1)].filter(Boolean)
 };
 
 /** Look up one backdrop by act number (1-5), or undefined if there is none. */

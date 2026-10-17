@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { EVENTS } from '../core/events.js';
+import { ACT_COUNT } from '../levels/index.js';
 import { AudioManager } from './AudioManager.js';
 
 /**
@@ -11,8 +12,10 @@ import { AudioManager } from './AudioManager.js';
  * needs to know about audio, and adding a sound is one line here
  * (CODE_RULES 6.2, 6.3).
  *
- * Each entry turns the event's payload into a sound key. Keys whose file
- * does not exist yet are silent until it arrives (AudioManager.isLoaded).
+ * Each entry turns the event's payload into a sound key, or into nothing
+ * when that particular moment does not deserve a sound. A key whose file
+ * does not exist yet still makes a noise: AudioManager stands a
+ * browser-made one in for it (systems/SynthSounds.js).
  */
 const CUES = {
     [EVENTS.SIZE_CHANGED]: ({ sizeIndex, previousIndex }) =>
@@ -20,9 +23,23 @@ const CUES = {
     [EVENTS.GROW_BLOCKED]: () => 'sfx_squeeze',
     [EVENTS.PLAYER_JUMPED]: () => 'sfx_jump',
     [EVENTS.WAX_PICKED_UP]: () => 'sfx_wax',
+    [EVENTS.SWITCH_PRESSED]: () => 'sfx_switch',
+    [EVENTS.SWITCH_TICK]: () => 'sfx_tick',
+    [EVENTS.LANTERN_LIT]: () => 'sfx_checkpoint',
+    [EVENTS.HINT_SHOWN]: () => 'sfx_paper',
+    [EVENTS.GATE_OPENED]: () => 'sfx_gate',
+    [EVENTS.GATE_CLOSED]: () => 'sfx_gate',
     [EVENTS.PLAYER_HURT]: () => 'sfx_hurt',
     [EVENTS.ACT_COMPLETE]: () => 'sfx_door',
-    [EVENTS.WAX_OUT]: () => 'sfx_candle_out'
+    [EVENTS.WAX_OUT]: () => 'sfx_candle_out',
+    [EVENTS.MOTH_SWATTED]: () => 'sfx_swat',
+    [EVENTS.DRAFT_TELEGRAPH]: () => 'sfx_gust',
+
+    // Only a real drop thuds. Every small hop making a noise turns a walk
+    // into a drum solo, so this uses the same line DustPuff draws for its
+    // camera nudge (CONFIG.land.nudgeSpeed).
+    [EVENTS.PLAYER_LANDED]: ({ fallSpeed }) =>
+        (fallSpeed > CONFIG.land.nudgeSpeed ? 'sfx_land' : null)
 };
 
 /**
@@ -40,11 +57,18 @@ export class SoundCues {
         this.scene = scene;
 
         Object.entries(CUES).forEach(([event, keyFor]) => {
-            listeners.on(event, (payload) => AudioManager.playSfx(scene, keyFor(payload ?? {})), this);
+            listeners.on(event, (payload) => {
+                const key = keyFor(payload ?? {});
+
+                // A cue may decide this particular moment is not worth a
+                // sound (a small hop, say) by returning nothing.
+                if (key) AudioManager.playSfx(scene, key);
+            }, this);
         });
 
         // Act 5 has its own, tenser track once that file exists.
-        const finale = actNumber === 5 && AudioManager.isLoaded(scene, 'music_finale');
+        // The finale is the LAST act, however many were cut before it.
+        const finale = actNumber === ACT_COUNT && AudioManager.isLoaded(scene, 'music_finale');
         AudioManager.playMusic(scene, finale ? 'music_finale' : 'music_theme');
 
         this.startCrackle(listeners);

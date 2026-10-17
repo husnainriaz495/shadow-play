@@ -33,6 +33,13 @@ export class SizeChanger {
         /** The scale the puppet is DRAWN at; eases towards state.scale. */
         this.visualScale = player.state.scale;
         this.tween = null;
+
+        /**
+         * While a draft is blowing, the puppet is pinned Tiny and cannot
+         * grow out of it (PRD 6.4, systems/DraftWind.js). Standing in a
+         * shelter lifts it.
+         */
+        this.heldTiny = false;
     }
 
     /**
@@ -43,6 +50,12 @@ export class SizeChanger {
         const player = this.player;
 
         if (index === null || index === player.state.index) return;
+
+        // A gust holds the puppet flat: it may shrink, never grow.
+        if (this.heldTiny && index > player.state.index) {
+            EventBus.emit(EVENTS.GROW_BLOCKED, { sizeIndex: index });
+            return;
+        }
 
         const next = createSizeState(index);
 
@@ -88,7 +101,7 @@ export class SizeChanger {
         return [0, shift, -shift].find((dx) => this.fits(this.player.x + dx, width, next)) ?? null;
     }
 
-    /** True if a body of this size, centred on x with its feet here, touches no solid tile. */
+    /** True if a body of this size, centred on x with its feet here, touches no solid tile or prop. */
     fits(centreX, width, next) {
         const height = next.bodyHeight - CONFIG.player.bodyClearancePx;
         const left = centreX - width / 2;
@@ -105,7 +118,15 @@ export class SizeChanger {
             { isColliding: true }
         );
 
-        return tiles.length === 0;
+        if (tiles.length > 0) return false;
+
+        // Props count too (NOTES.md open question 3): a crate or a closed
+        // gate in the way refuses the grow, just like a wall would.
+        const bodies = this.scene.physics.overlapRect(
+            left + inset, top + inset, width - inset * 2, height - inset * 2, true, true
+        );
+
+        return !bodies.some((body) => body.enable && body.gameObject?.blocksGrowth);
     }
 
     /** Ease the drawn size to the new one, replacing any tween in flight. */

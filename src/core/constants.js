@@ -13,9 +13,32 @@ export const TILE_SIZE = 40;
 export const GRID_COLS = 32;
 export const GRID_ROWS = 18;
 
-/** The game canvas size, derived from the grid so they can never disagree. */
+/** The STAGE size, derived from the grid so they can never disagree. */
 export const GAME_WIDTH = GRID_COLS * TILE_SIZE;
 export const GAME_HEIGHT = GRID_ROWS * TILE_SIZE;
+
+/**
+ * The whole canvas: the stage plus a dark frame round it (PALETTE.md
+ * `frame`: "border round the stage"). Still exactly 16:9 (1408 x 792).
+ *
+ * WHY a frame: the HUD needs somewhere to live that is never over the
+ * level. The stage sits centred sideways near the top, and the band under
+ * it holds the wax panel and the size dots. World coordinates do not
+ * change -- the stage is still (0,0)-(1280,720) -- so the frame is simply
+ * at negative x, and at y 720 to 784 below the stage.
+ */
+export const VIEW_WIDTH = 1408;
+export const VIEW_HEIGHT = 792;
+export const STAGE_X = (VIEW_WIDTH - GAME_WIDTH) / 2;   // 64: the frame's width at each side
+export const STAGE_Y = 8;                               // the frame's thin top edge
+
+/** The HUD band under the stage, in world coordinates. */
+export const HUD_BAND = {
+    left: -STAGE_X,
+    right: GAME_WIDTH + STAGE_X,
+    top: GAME_HEIGHT,
+    bottom: VIEW_HEIGHT - STAGE_Y
+};
 
 /**
  * Scene keys. Always import these instead of typing 'GameScene' by hand:
@@ -29,6 +52,7 @@ export const SCENES = {
     UI: 'UIScene',
     PAUSE: 'PauseScene',
     ACT_CARD: 'ActCardScene',
+    CURTAIN_CALL: 'CurtainCallScene',
     END: 'EndScene'
 };
 
@@ -93,6 +117,7 @@ export const SYMBOLS = {
     DRAFT: '^',
     SHELTER: '|',
     CHECKPOINT: 'k',
+    LANTERN: 'l',
     HINT: '?'
 };
 

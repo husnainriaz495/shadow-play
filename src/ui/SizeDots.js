@@ -19,13 +19,19 @@ export class SizeDots {
      * @param {number} x centre of the middle dot
      * @param {number} y centre line of the dots
      */
-    constructor(scene, x, y) {
+    /**
+     * @param {object} [options]
+     * @param {boolean} [options.labelBeside] put the size's name to the LEFT
+     *        of the dots instead of under them (the HUD band is short)
+     */
+    constructor(scene, x, y, { labelBeside = false } = {}) {
         this.x = x;
         this.y = y;
 
         this.graphics = scene.add.graphics();
-        this.label = scene.add.text(x, y + 20, CONFIG.player.sizes[1].name, CONFIG.text.hud)
-            .setOrigin(0.5, 0);
+        this.label = labelBeside
+            ? scene.add.text(x - DOTS.spacing * 1.5 - DOTS.radius, y, CONFIG.player.sizes[1].name, CONFIG.text.hud).setOrigin(1, 0.5)
+            : scene.add.text(x, y + 20, CONFIG.player.sizes[1].name, CONFIG.text.hud).setOrigin(0.5, 0);
 
         this.setSize(1);
     }

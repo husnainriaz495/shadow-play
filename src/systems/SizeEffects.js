@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { EVENTS } from '../core/events.js';
+import { Afterimage } from '../fx/Afterimage.js';
 
 /**
  * What a size change looks like, apart from the puppet itself scaling:
@@ -25,6 +26,8 @@ export class SizeEffects {
         this.tween = null;
 
         this.shakeTween = null;
+        this.breathTween = null;
+        this.afterimage = new Afterimage(scene);
 
         listeners
             .on(EVENTS.SIZE_CHANGED, this.onSizeChanged, this)
@@ -67,5 +70,29 @@ export class SizeEffects {
 
         // Growing throws the limbs out, shrinking pulls them in.
         this.rig.poser.wobble(sizeIndex > previousIndex ? 1 : -1);
+
+        // The shape it just was, left hanging for a moment.
+        this.afterimage.trail(this.rig.container);
+        this.breathe();
+    }
+
+    /**
+     * The light "breath" (PRD 5.1): the candle's pool swells and settles
+     * as the puppet changes size, so the change is felt on the paper and
+     * not only on the silhouette. It multiplies the light rather than
+     * setting it, so it works at any wax level or glow scale.
+     */
+    breathe() {
+        const { breathScale, breathInMs, breathOutMs } = CONFIG.glow;
+
+        this.breathTween?.stop();
+        this.paperScreen.breath = 1;
+        this.breathTween = this.scene.tweens.chain({
+            targets: this.paperScreen,
+            tweens: [
+                { breath: breathScale, duration: breathInMs, ease: CONFIG.anim.easeInSoft },
+                { breath: 1, duration: breathOutMs, ease: CONFIG.anim.easeLoop }
+            ]
+        });
     }
 }

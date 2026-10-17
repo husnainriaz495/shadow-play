@@ -7,6 +7,7 @@ import { createSizeState } from '../states/index.js';
 import { CornerCorrection } from '../systems/CornerCorrection.js';
 import { PlatformDrop } from '../systems/PlatformDrop.js';
 import { PlayerInput } from '../systems/PlayerInput.js';
+import { HurtState } from '../systems/HurtState.js';
 import { SizeChanger } from '../systems/SizeChanger.js';
 
 /**
@@ -40,6 +41,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
         this.body.setCollideWorldBounds(true);
 
+        // Terminal velocity. Without it a long drop moves further in one
+        // frame than Arcade looks into a tile, and the puppet falls through
+        // solid floor (see CONFIG.physics.maxFallSpeed).
+        this.body.maxVelocity.y = CONFIG.physics.maxFallSpeed;
+
         /** Timestamps that make jumping forgiving (PRD 4.8). */
         this.lastOnGroundAt = -Infinity;
         this.lastJumpPressedAt = -Infinity;
@@ -48,8 +54,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         /** Distance walked, in tiles -- the tutorial listens for this. */
         this.distanceWalked = 0;
 
+        /**
+         * Sideways push from the weather, in px/s (systems/DraftWind.js).
+         * It is added to the TARGET speed below rather than shoved into
+         * the velocity: the movement lerps towards its target every frame,
+         * so a nudge straight into the velocity is wiped out again before
+         * it can carry the puppet anywhere.
+         */
+        this.windPush = 0;
+
         // Named `controls`, not `input`: Phaser game objects already use `input`.
         this.controls = new PlayerInput(scene);
+        this.hurtState = new HurtState(this);   // knockback + invulnerability
 
         // Terrain helpers: forgiving corners and one-way shelves (PRD 4.10).
         this.corners = new CornerCorrection(layer);
@@ -101,6 +117,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     /** Asked by GameScene's collider: should this tile let the player through? */
+    /** A hazard touched the puppet (FireGrid, later moths). See HurtState. */
+    hurt(amount, fromX, source) {
+        return this.hurtState.hurt(amount, fromX, source);
+    }
+
     letsThrough(tile) {
         return this.platformDrop.letsThrough(tile, this.scene.time.now);
     }
@@ -124,9 +145,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
      * difference between "responsive" and "icy" (PRD 4.8).
      */
     moveHorizontally(seconds) {
+        // Mid-knockback the push wins over the keys, or it would vanish at once.
+        if (this.hurtState.stunned) return 0;
+
         const direction = this.controls.direction;
 
-        const target = direction * this.state.speed;
+        // The wind is part of where the puppet is TRYING to go. Running
+        // into it still works; it is just slow.
+        const target = direction * this.state.speed + this.windPush;
         const rampMs = direction === 0 ? CONFIG.player.frictionMs : CONFIG.player.accelerationMs;
 
         // Fraction of the way to the target we travel this frame. Capped at

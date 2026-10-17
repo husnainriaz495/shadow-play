@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES } from '../core/constants.js';
 import { StageTextures } from '../systems/StageTextures.js';
+import { TileTextures } from '../systems/TileTextures.js';
 import { PuppetTextures } from '../systems/PuppetTextures.js';
 import { PropTextures } from '../systems/PropTextures.js';
 import { UiTextures } from '../systems/UiTextures.js';
@@ -26,6 +27,7 @@ export class BootScene extends Phaser.Scene {
 
     create() {
         new StageTextures(this).generate();
+        new TileTextures(this).generate();
         new PuppetTextures(this).generate();
         new PropTextures(this).generate();
         new UiTextures(this).generate();

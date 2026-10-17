@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { CONFIG } from './config.js';
-import { GAME_WIDTH, GAME_HEIGHT } from './core/constants.js';
+import { VIEW_WIDTH, VIEW_HEIGHT } from './core/constants.js';
 import { toCssColor } from './core/helpers.js';
 import { BootScene } from './scenes/BootScene.js';
 import { PreloadScene } from './scenes/PreloadScene.js';
@@ -8,6 +8,7 @@ import { TitleScene } from './scenes/TitleScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { UIScene } from './scenes/UIScene.js';
 import { PauseScene } from './scenes/PauseScene.js';
+import { CurtainCallScene } from './scenes/CurtainCallScene.js';
 import { ActCardScene } from './scenes/ActCardScene.js';
 import { EndScene } from './scenes/EndScene.js';
 
@@ -21,10 +22,10 @@ import { EndScene } from './scenes/EndScene.js';
  */
 const gameConfig = {
     type: Phaser.AUTO,
-    // Drawn at render scale for sharpness; every scene's camera zooms back
-    // to the 1280x720 stage (core/camera.js).
-    width: GAME_WIDTH * CONFIG.render.scale,
-    height: GAME_HEIGHT * CONFIG.render.scale,
+    // The stage plus its dark frame (VIEW_*, 16:9), drawn at render scale
+    // for sharpness; every scene's camera zooms back (core/camera.js).
+    width: VIEW_WIDTH * CONFIG.render.scale,
+    height: VIEW_HEIGHT * CONFIG.render.scale,
     parent: 'game-container',
 
     // The frame colour (PALETTE.md), so letterbox bars when the window is
@@ -51,13 +52,19 @@ const gameConfig = {
                 Phaser.Input.Keyboard.KeyCodes.RIGHT,
                 Phaser.Input.Keyboard.KeyCodes.SPACE
             ]
-        }
+        },
+
+        // Menus can be driven with a pad as well as the keyboard and
+        // mouse (ui/MenuList.js). Phaser only reports a pad once the
+        // player actually touches one, so this costs nothing otherwise.
+        gamepad: true
     },
 
     physics: {
         default: 'arcade',
         arcade: {
             gravity: { y: CONFIG.physics.gravity },
+            tileBias: CONFIG.physics.tileBias,   // see the note in config.js
             debug: CONFIG.DEBUG
         }
     },
@@ -67,6 +74,7 @@ const gameConfig = {
         PreloadScene,
         TitleScene,
         ActCardScene,
+        CurtainCallScene,
         GameScene,
         UIScene,
         PauseScene,     // last, so it draws on top of the act and the HUD

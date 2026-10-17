@@ -112,8 +112,22 @@ export class PuppetPoser {
         if (time - this.squeezedAt < CONFIG.rig.poses.squeeze.durationMs) return 'squeeze';
         if (airborne) return body.velocity.y < 0 ? 'jump' : 'fall';
         if (time - this.landedAt < land.squashMs) return 'land';
+        if (this.isPushing()) return 'push';
 
         return Math.abs(body.velocity.x) > 10 ? 'walk' : 'idle';
+    }
+
+    /**
+     * Huge, walking, and pressed against a body (a crate) on the side it is
+     * walking towards. Tiles set `blocked`, bodies set `touching`, so a
+     * plain wall never counts as pushing.
+     */
+    isPushing() {
+        const { body, controls } = this.player;
+        const direction = controls.direction;
+        const pressing = direction > 0 ? body.touching.right : body.touching.left;
+
+        return this.player.state.canPushCrates && direction !== 0 && pressing;
     }
 
     /**
@@ -126,11 +140,12 @@ export class PuppetPoser {
         const { walk, idle } = CONFIG.rig.poses;
         const swing = Math.sin(this.phase);
 
-        if (pose === walk) {
+        if (pose === walk || pose === CONFIG.rig.poses.push) {
             this.joints.nearLeg.setTarget(pose.legSwing * swing);
             this.joints.farLeg.setTarget(-pose.legSwing * swing);
-            this.joints.nearArm.setTarget(-pose.armSwing * swing);
-            this.joints.farArm.setTarget(pose.armSwing * swing);
+            // Walking swings the arms; pushing holds them out in front.
+            this.joints.nearArm.setTarget(pose.armSwing ? -pose.armSwing * swing : pose.arm);
+            this.joints.farArm.setTarget(pose.armSwing ? pose.armSwing * swing : pose.arm);
             return;
         }
 

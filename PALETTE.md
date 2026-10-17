@@ -23,7 +23,11 @@ I # Shadow Play — Colour Palette
 | `danger` | `#ff4d4d` | Hurt flash, wax-low warning pulse |
 | `dotOff` | `#3a4a4f` | Inactive size dots and empty UI slots |
 | `curtain` | `#7a1424` → `#3a0610` | Curtain placeholder (the real curtain image is in colour) |
-| `gold` | `#e8b65a` | Logo placeholder text, results-card stars |
+| `gold` | `#e8b65a` | Logo placeholder text, results-card candles, every panel border |
+| `stagePanel` | `#2b0910` at 90% opacity | **Every pop-up in the show**: results card, death panel, pause menu, settings, act select. A dark wine red taken from the curtain's own shade, so a card looks like it belongs to the theatre rather than to the stage behind it |
+| `stagePanelEdge` | `#e8b65a` | The thin gold border and the ornament line under a panel's heading |
+| `buttonRest` | `#3d121c` | A button's own plate inside a panel, unselected |
+| `buttonSelected` | `#5e1d2a` | ...and selected, under the gold text |
 
 ## How the look is built
 
@@ -38,6 +42,12 @@ I # Shadow Play — Colour Palette
 
 - AI-made silhouettes stay `#0b0806` as in `ASSETS.md`; it's close enough to `shadow` that no recolouring is needed.
 - The curtain, logo and favicon are in colour; keep them warm (reds, golds, orange flame) so they sit well on the teal.
+- **Pop-ups belong to the theatre, not the stage.** Anything that stops
+  play -- the results card, a death panel, the pause menu, settings --
+  uses `stagePanel` with a `gold` border and a gold ornament under its
+  heading, with cream (`title`) headings and real buttons. The teal
+  `panel` is kept for things drawn ON the stage that must not pull the
+  eye: the `?` hints and the HUD's wax card.
 
 ## Other options (not chosen)
 

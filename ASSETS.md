@@ -38,19 +38,19 @@ Sizes are given at **2× Normal scale** for the puppet parts so they stay crisp 
 | [x] | `gate` | `public/assets/images/gate.png` | 40×120 | Portcullis bars | Vertical bars |
 | [x] | `switch` | `public/assets/images/switch.png` | 80×40 (2 frames, 40×40: up / pressed) | Heavy floor lever/plate | Small block |
 | [ ] | `wax` | `public/assets/images/wax.png` | 24×32 | A wax drop (this one may be cream `#fff1c9`, not black) | Teardrop shape |
-| [ ] | `lantern` | `public/assets/images/lantern.png` | 80×80 (2 frames, 40×40: unlit / lit) | Small hanging lantern for checkpoints | Small box with a flame dot |
-| [ ] | `bg_act1` | `public/assets/images/bg_act1.png` | 1280×720 | Act 1 backdrop: village rooftops and a church tower, silhouettes at ~30% opacity along the bottom | None (plain paper) |
-| [ ] | `bg_act2` | `public/assets/images/bg_act2.png` | 1280×720 | Act 2: a giant's castle | None |
-| [ ] | `bg_act3` | `public/assets/images/bg_act3.png` | 1280×720 | Act 3: forest with a big moon | None |
-| [ ] | `bg_act4` | `public/assets/images/bg_act4.png` | 1280×720 | Act 4: windmill and tall windows | None |
-| [ ] | `bg_act5` | `public/assets/images/bg_act5.png` | 1280×720 | Act 5: the theatre itself, stage and audience heads | None |
-| [ ] | `curtain_left` | `public/assets/images/curtain_left.png` | 660×720 | Red velvet theatre curtain, left half (in colour) | Dark red rectangle with fold lines |
-| [ ] | `curtain_right` | `public/assets/images/curtain_right.png` | 660×720 | Right half (mirror of left) | Same |
-| [ ] | `logo` | `public/assets/images/logo.png` | 800×240 | "Shadow Play" title, gold on transparent | Text in the theatre font |
-| [ ] | `pointer_hand` | `public/assets/images/pointer_hand.png` | 64×64 | Black silhouette of a pointing hand (puppeteer's glove), pointing down | Triangle arrow |
-| [ ] | `favicon` | `public/favicon.png` | 64×64 | A lit candle icon (in colour), used as the browser tab icon. Not loaded by Phaser | Phaser default icon |
-| [ ] | `og_image` | `public/og-image.png` | 1200×630 | Link-preview image: a screenshot of the puppet on glowing paper with the logo. Not loaded by Phaser | None |
-| [ ] | `gamepad_icons` | `public/assets/images/gamepad_icons.png` | 256×64 (4 frames, 64×64: A, B, LB, RB) | Gamepad button icons for device-aware prompts (keyboard keys are drawn in code) | Circles with letters drawn in code |
+| [x] | `lantern` | `public/assets/images/lantern.png` | 80×40 (2 frames, 40×40: unlit / lit) | Small hanging lantern for checkpoints | Small box with a flame dot |
+| [x] | `bg_act1` | `public/assets/images/bg_act1.png` | 1280×720 | Act 1 backdrop: village rooftops and a church tower, silhouettes at ~30% opacity along the bottom | None (plain paper) |
+| [x] | `bg_act2` | `public/assets/images/bg_act2.png` | 1280×720 | Act 2: a giant's castle | None |
+| [x] | `bg_act3` | `public/assets/images/bg_act3.png` | 1280×720 | Act 3: forest with a big moon | None |
+| [x] | `bg_act4` | `public/assets/images/bg_act4.png` | 1280×720 | Act 4: windmill and tall windows | None |
+| [x] | `bg_act5` | `public/assets/images/bg_act5.png` | 1280×720 | Act 5: the theatre itself, stage and audience heads | None |
+| [x] | `curtain_left` | `public/assets/images/curtain_left.png` | 660×720 | Red velvet theatre curtain, left half (in colour) | Dark red rectangle with fold lines |
+| [x] | `curtain_right` | `public/assets/images/curtain_right.png` | 660×720 | Right half (mirror of left) | Same |
+| [x] | `logo` | `public/assets/images/logo.png` | 800×240 | "Shadow Play" title, gold on transparent | Text in the theatre font |
+| [x] | `pointer_hand` | `public/assets/images/pointer_hand.png` | 64×64 | Black silhouette of a pointing hand (puppeteer's glove), pointing down | Triangle arrow |
+| [x] | `favicon` | `public/favicon.png` | 64×64 | A lit candle icon (in colour), used as the browser tab icon. Not loaded by Phaser | Phaser default icon |
+| [x] | `og_image` | `public/og-image.png` | 1200×630 | Link-preview image: a screenshot of the puppet on glowing paper with the logo. Not loaded by Phaser | None |
+| [x] | `gamepad_icons` | `public/assets/images/gamepad_icons.png` | 256×64 (4 frames, 64×64: A, B, LB, RB) | Gamepad button icons for device-aware prompts (keyboard keys are drawn in code) | Circles with letters drawn in code |
 
 The paper texture, glow, flame, HUD candle, walls, burning paper, particles, key icons, spotlight and the tutorial tick are **always drawn in code**: no files are needed.
 

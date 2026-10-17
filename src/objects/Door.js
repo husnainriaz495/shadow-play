@@ -3,6 +3,7 @@ import { CONFIG } from '../config.js';
 import { DEPTHS, TILE_SIZE } from '../core/constants.js';
 import { EVENTS } from '../core/events.js';
 import { EventBus } from '../core/EventBus.js';
+import { Pointer } from '../ui/Pointer.js';
 
 /**
  * The stage door: the goal of every act. Touching it ends the act
@@ -30,6 +31,9 @@ export class Door extends Phaser.Physics.Arcade.Image {
 
         this.glow = this.createGlow(scene);
         this.reached = false;
+
+        // As the act begins, the puppeteer's hand points at the goal.
+        new Pointer(scene, this.x, this.y - this.displayHeight);
     }
 
     createGlow(scene) {

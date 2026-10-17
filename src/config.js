@@ -32,7 +32,18 @@ const palette = {
     danger: 0xff4d4d,       // hurt flash, wax-low warning pulse
     dotOff: 0x3a4a4f,       // inactive size dots, empty slots
     curtain: [0x7a1424, 0x3a0610], // curtain placeholder, light to dark fold
-    gold: 0xe8b65a          // logo placeholder, results-card stars
+    gold: 0xe8b65a,         // logo placeholder, results-card candles, panel borders
+
+    /**
+     * Every pop-up in the show (results card, death panel, pause menu,
+     * settings) is this dark wine red with a gold border, so a card looks
+     * like it belongs to the theatre rather than to the stage behind it.
+     * The teal `panel` above stays for things drawn ON the stage.
+     */
+    stagePanel: 0x2b0910,
+    stagePanelAlpha: 0.9,
+    buttonRest: 0x3d121c,
+    buttonSelected: 0x5e1d2a
 };
 
 /**
@@ -84,7 +95,28 @@ export const CONFIG = {
 
     physics: {
         gravity: 1400,
-        fastFallMultiplier: 1.6   // extra gravity while falling: snappy jumps
+        fastFallMultiplier: 1.6,  // extra gravity while falling: snappy jumps
+
+        /**
+         * TERMINAL VELOCITY, and why it is not optional. Arcade physics
+         * checks collisions once a frame: a body moving further in one
+         * frame than it can "reach" into a tile passes straight THROUGH
+         * the floor. With fastFall the puppet hits ~1770 px/s (30 px a
+         * frame) at the bottom of a full-height stage, which tunnels.
+         *
+         * 1200 px/s is 20 px a frame, caught comfortably by tileBias
+         * below, and it is far faster than any real jump -- so nothing in
+         * the game feels different, and a long drop can no longer dump the
+         * puppet through solid stone (which reads as a fall-to-death bug).
+         */
+        maxFallSpeed: 1200,
+
+        /**
+         * How far INTO a tile Arcade will look when deciding a landing
+         * (Phaser's default is 16 px). One whole tile, so the check always
+         * covers a frame's worth of falling.
+         */
+        tileBias: 40
     },
 
     /** Nothing in the game may hard-code a colour -- read it from here. */
@@ -107,6 +139,7 @@ export const CONFIG = {
         body:    { ...sharp, fontFamily, fontSize: '26px', color: light, align: 'center', shadow: textShadow },
         prompt:  { ...sharp, fontFamily, fontSize: '28px', color: light, letterSpacing: 2, shadow: textShadow },
         muted:   { ...sharp, fontFamily, fontSize: '24px', color: toCssColor(palette.textMuted), align: 'center', shadow: textShadow },
+        hintDanger: { ...sharp, fontFamily, fontSize: '30px', color: light, align: 'center', shadow: textShadow },
         hud:     { ...sharp, fontFamily, fontSize: '24px', color: light, shadow: textShadow },
         debug:   { ...sharp, fontFamily: 'monospace', fontSize: '16px', color: '#9ef' }
     },
@@ -156,6 +189,7 @@ export const CONFIG = {
 
         /** Invulnerability after a hit, with a blink (PRD 4.8). */
         invulnerableMs: 800,
+        knockbackMs: 220,       // the keys cannot cancel a knockback for this long
         hitStopMs: 80,          // physics pauses this long on damage
 
         /**
@@ -294,9 +328,18 @@ export const CONFIG = {
             land: { arm: -10, leg: 6, lean: 2, squash: 0.9, squashMs: 100, minAirMs: 60 },
             // Growing refused: arms pulled in tight while the puppet shivers.
             squeeze: { arm: 12, leg: 0, lean: 0, durationMs: 250 },
+            // Pushing a crate while Huge (PRD 4.2.1): both arms straight
+            // out in front, a shorter stride, leaning into the weight.
+            push: { arm: -90, leg: 0, lean: 12, legSwing: 13 },
             // Candle out: everything hangs, on looser springs (higher
             // damping = more swing), and the puppet sags on its rods.
-            limp: { arm: 0, leg: 0, lean: 0, damping: 0.95, dropPx: 8 }
+            limp: { arm: 0, leg: 0, lean: 0, damping: 0.95, dropPx: 8 },
+            // The ending's bow. A marionette is rigid, so the WHOLE figure
+            // is tipped forward on its rods by `lean`; `arm` counter-swings
+            // the arms so they still hang towards the floor (ui/
+            // BowingPuppet.js). `stand` is the same puppet upright.
+            stand: { arm: -4, leg: 0, lean: 0 },
+            bow: { arm: -18, leg: 0, lean: 24 }
         }
     },
 
@@ -304,31 +347,303 @@ export const CONFIG = {
         start: 100,            // every act starts with a full candle
         max: 100,
         baseDrain: 100 / 120,  // empties in 120 s at Normal (PRD 4.3)
-        dropAmount: 20,        // a 'w' pickup restores this much
+        /**
+         * What a `w` pickup gives back, as a percentage of a full candle.
+         *
+         * It is deliberately SMALL. At 20 a single drop was a fifth of
+         * the whole candle, so two of them wiped out whatever the act had
+         * cost and the wax stopped being a clock at all -- you ended
+         * every act at 100% however long you took. A drop is now a
+         * breath, not a refill: the pressure stays on and finding one
+         * still matters.
+         */
+        dropAmount: 8,
         lowThreshold: 30,      // below this the glow dims and the flame panics
         hurtCost: {            // wax lost to each hazard (PRD 4.4)
             fire: 15,
             moth: 10
         },
-        knockback: 260         // horizontal push when burnt
+        knockback: 260,        // horizontal push when burnt
+        knockbackUp: 260       // ...and a small hop up, away from the floor
     },
 
+    /** Crates `C` (PRD 4.4): solid, and movable ONLY by a Huge puppet. */
+    crate: {
+        pushSpeed: 90,         // px/s while a Huge puppet leans on it (Huge walks at 160)
+        dragX: 1800,           // px/s² of slowing: stops soon after the push ends
+        contactPx: 3,          // how close the puppet's side must be to count as touching
+
+        /**
+         * A crate can only slide sideways, never climb. One that lands this
+         * many tiles (or more) below where it started cannot get back to its
+         * puzzle, so a "stagehand" returns it to its start. Intentional
+         * drops in a level must therefore be SHALLOWER than this (Act 2's
+         * notch is 1 deep).
+         */
+        lostDropTiles: 2,
+        returnDelayMs: 600,    // let the player see it land before it goes
+        returnFadeMs: 250,     // fade out, and back in at the start
+        returnRetryMs: 150     // re-check if the puppet is standing on its start
+    },
+
+    /**
+     * Heavy switches `S` and gates `G` (PRD 4.4, 5.1 "Switch and gate").
+     * A switch opens the NEAREST gate; it is pressed by a Huge puppet
+     * standing on it or by a crate resting on it.
+     */
+    switchGate: {
+        pressTolerancePx: 4,   // how far off the floor still counts as standing on it
+        linkMs: 1000,          // the light line from switch to gate fades over this
+        linkWidth: 3,
+        openMs: 350,           // the gate rises...
+        closeMs: 250,          // ...and drops back faster
+        stubPx: 8,             // how much gate still shows when fully raised
+        shakeMs: 120,          // a short shake as it opens
+        shakeIntensity: 0.004,
+
+        /**
+         * THE TIMED GATE (PRD 4.5, Act II). Step off the switch and the
+         * gate does not slam at once: it stays open for this long while a
+         * ring of light shrinks on the plate and a tick counts it away.
+         *
+         * That turns one puzzle into a choice. Push the crate onto the
+         * switch and the gate is held open for good -- the safe answer.
+         * Or press it yourself as Huge, jump out of the notch, shrink
+         * (Huge does not fit through the doorway) and run for it. Three
+         * seconds is roughly twice what that dash needs, which is the
+         * point: it should feel tight and be fair.
+         */
+        holdSeconds: 3
+    },
+
+    /**
+     * The shrinking ring of light that shows borrowed time (fx/
+     * CountdownRing.js). Used by the timed gate, and by anything else that
+     * ever needs to say "you have a few seconds".
+     */
+    countdownRing: {
+        radiusPx: 34,          // at full time; it shrinks towards shrinkTo
+        /**
+         * How small the ring gets at zero. Kept close to 1 ON PURPOSE: the
+         * first version shrank to 0.45 and faded its halo to nothing, so
+         * the last second -- the one the player has to read -- was a dot
+         * nobody could see. The ARC emptying is what tells the time; the
+         * circle only has to stay findable.
+         */
+        shrinkTo: 0.75,
+        widthPx: 4,            // the remaining-time arc
+        warnExtraPx: 2,        // ...which thickens once it turns red
+        trackWidthPx: 2,       // the full circle behind it, always visible
+        trackAlpha: 0.5,
+        glowAlpha: 0.55,       // the halo at full time...
+        glowFloor: 0.45,       // ...never fading below this much of it
+        warnFraction: 0.34,    // below this the ring turns danger red
+        tickMs: 1000           // one tick a second
+    },
+
+    /**
+     * Hints painted on the stage, map symbol `?` (PRD 4.10, 5.1). PRD 5.1
+     * says "within 4 tiles"; 3 to show and 4 to hide keeps two neighbouring
+     * hints from both being open and overlapping. The gap between the two
+     * stops a hint flapping open and shut at the edge.
+     */
+    hint: {
+        showTiles: 3,          // unfolds when the puppet is this close (sideways)...
+        hideTiles: 4,          // ...and folds away beyond this
+        paddingX: 22,          // paper around the text
+        paddingY: 12,
+
+        /** WARNING hints (`{ danger: true }` in a level's hints): PaperPanel.dropIn. */
+        danger: {
+            y: 118,            // under the act title's plate
+            dropPx: 44,        // falls in from this far above...
+            dropMs: 420,       // ...with a Back.Out overshoot
+            shakePx: 5,        // then a quick shake
+            shakeMs: 45,
+            shakeTimes: 3,
+            pulseScale: 1.04,  // then a gentle pulse until it closes
+            pulseMs: 650,
+            iconScale: 1.2,    // the flame icon (18x26 texture)
+            iconGap: 12
+        }
+    },
+
+    /**
+     * Burning paper (PRD 4.4). Timings are PER TILE: a tile lights its
+     * paper neighbours one tile's worth of travel after catching, and
+     * becomes a hole burnToHoleSeconds after catching.
+     *
+     * The fire front SPEEDS UP over the act: speedStart px/s when it starts
+     * spreading, easing to speedEnd px/s over rampSeconds, so the chase
+     * tightens as it goes. Every size still outruns it (Huge walks 160).
+     * TILE_SIZE / speedStart (40 / 67 = 0.6 s) must stay BELOW
+     * burnToHoleSeconds, or every tile burns out before it spreads and the
+     * fire dies. (PRD's "spread every 2.5 s, hole after 1 s" did exactly that.)
+     */
     fire: {
-        spreadSeconds: 2.5,    // how often fire jumps to a neighbouring tile
-        burnToHoleSeconds: 1,  // burning -> hole (non-solid)
-        emberRate: 24          // particles per second per burning tile
+        speedStart: 67,        // px/s the front moves at when it starts spreading...
+        speedEnd: 90,          // ...ramping up to this...
+        rampSeconds: 6,        // ...over this long: Act 5's paper runs out at ~6.5 s, so it hits speedEnd
+        burnToHoleSeconds: 1.4,// catch -> hole: the burning band is ~2 tiles wide
+        startDelaySeconds: 2.5,// the map's `f` tiles wait this long first: a head start
+
+        glowRadius: 34,        // each burning tile's soft orange glow, once settled
+        glowAlpha: 0.75,
+        frontGlowRadius: 72,   // a tile that has JUST caught flares this big and bright,
+        frontGlowAlpha: 1,     // then settles over its burn, so the front edge glows
+        emberEveryMs: 120,     // every burning tile puffs an ember this often
+        emberLifeMs: 900,
+        maxEmbers: 220,        // the particle pool's size (CODE_RULES 9)
+        frontEmbers: 4,        // a burst of embers rises from each new ignition
+        holeEmbers: 6,         // a little burst when a tile burns through
+
+        // As the fire spreads, the candle's light on the paper warms towards
+        // this red-orange; at all the act's paper burning or burnt it is
+        // heatTintMax of the way there. Eased, never a jump.
+        heatTint: palette.flameOuter,
+        heatTintMax: 0.6,
+        heatEasePerFrame: 0.04,
+
+        // The burnable paper tile: cream with a scorched rim (StageTextures).
+        paperTile: {
+            scorchRings: 6,        // how far in the scorch reaches, in px
+            scorchMix: 0.55,       // warm orange towards shadow: the burnt colour
+            scorchMaxAlpha: 0.85,  // at the very edge
+            notches: [[6, 1, 3], [27, 2, 2.5], [39, 14, 3], [1, 30, 2.5], [18, 39, 3], [33, 38, 2]]
+        }
     },
 
-    moth: {
-        speed: 90,             // max chase speed
-        wobbleAmplitude: 28,   // height of the sine path
-        wobbleSpeed: 0.004     // how fast the sine advances (per ms)
+    /** What a hit looks like (PRD 4.8, 5.1): flash, shake, blink. */
+    hit: {
+        flashMs: 90,           // the puppet glows white-hot this long
+        shakeMs: 160,          // camera shake (strength: anim.shake.hit)
+        blinkAlpha: 0.35,      // blinking while invulnerable...
+        blinkMs: 100           // ...this fast
     },
 
+    /** Falling out of the bottom of the stage (through a burnt hole). */
+    fall: {
+        restartDelayMs: 450    // a beat to see the fall, then straight back (PRD 4.8)
+    },
+
+    /**
+     * The draft (systems/DraftWind.js, PRD 6.4). Always the same three
+     * beats -- calm, a second of warning, then the gust -- so it can be
+     * planned around rather than dodged by luck.
+     */
     draft: {
         intervalSeconds: 6,    // time between gusts
         telegraphSeconds: 1,   // warning before a gust (curtains flutter)
-        gustSeconds: 1.5       // how long the player is forced Tiny
+        gustSeconds: 1.5,      // how long the player is held Tiny
+
+        /**
+         * The SHOVE. A Tiny shadow has nothing holding it down and is
+         * thrown; a bigger one is only leaned on. In the AIR there is
+         * nothing to brace against at all, which is what carries a Tiny
+         * puppet over the gap in act 4 -- raise pushAirborneScale and
+         * the jump gets easier, lower it and the gap becomes impossible.
+         */
+        pushTiny: 150,         // px/s added to the puppet's own speed
+        pushNormal: 45,
+        pushAirborneScale: 2.4,
+        maxPushSpeed: 420,     // however hard it blows, never more than this
+
+        /** The flame fights the draft, so it burns more wax in the open. */
+        openDrainScale: 1.6,
+
+        /** How fast the stage leans into a gust and settles after it. */
+        strengthEasePerFrame: 0.12,
+        telegraphStrength: 0.35,
+
+        /** The streak texture, baked once in StageTextures. */
+        streakWidth: 120,
+        streakHeight: 3,
+
+        /** Streaks of moving air crossing the stage (fx/WindEffects.js). */
+        streak: {
+            topY: 60,
+            bottomY: 700,
+            speedMin: 620,
+            speedMax: 1100,
+            drift: 40,
+            lifeMs: 2200,
+            scaleMin: 0.7,
+            scaleMax: 1.8,
+            alpha: 0.5,
+            maxStreaks: 120,
+            telegraphEveryMs: 110,   // a few, as the warning...
+            gustEveryMs: 28          // ...then a torrent
+        },
+
+        /** The "GUST!" card and the countdown bar (ui/GustWarning.js). */
+        warning: {
+            barY: 92,          // just under the act title's plate
+            barWidth: 360,
+            barHeight: 5,
+            barAlpha: 0.85,
+            trackAlpha: 0.35,
+            panelY: 150,
+            iconScale: 0.8
+        },
+
+        /**
+         * The open window drawn at each `^`: where the draft comes in.
+         * Without one the wind came from nowhere.
+         */
+        window: {
+            width: 56,
+            height: 78,
+            frameWidth: 4,
+            openAlpha: 0.85,
+            curtainHeight: 30,
+            curtainAlpha: 0.7,
+            flutterDeg: 14,
+            flutterMs: 120
+        },
+
+        /** The wind icon, drawn in UiTextures. */
+        icon: {
+            size: 34,
+            stroke: 3
+        },
+
+        /** Paper scraps blown across the stage (PRD 5.1). */
+        scrap: {
+            perTelegraph: 4,   // a few, as the warning
+            perGust: 18,       // a lot, during the gust itself
+            maxScraps: 90,
+            speedMin: 150,
+            speedMax: 340,
+            lift: 70,
+            lifeMs: 1600,
+            scale: 1.3,
+            edgeDivisor: 2     // with no `^` on the map, blow from mid-height
+        }
+    },
+
+    /**
+     * A shelter alcove (objects/Shelter.js): the only place a gust does
+     * not reach. Its curtain waves during the telegraph.
+     */
+    shelter: {
+        width: 76,
+        height: 112,
+        archRadius: 28,
+        postWidth: 5,          // the uprights, so it reads as built
+        screenAlpha: 0.8,      // lit paper, not a dark hole
+        rimAlpha: 0.9,
+
+        curtainHeight: 14,
+        curtainDrop: 6,
+        curtainAlpha: 0.75,
+        flutterDeg: 7,
+        flutterMs: 140,
+
+        /** The still air behind it: visible safety from across the room. */
+        glowRadius: 92,
+        glowMinAlpha: 0.22,
+        glowMaxAlpha: 0.4,
+        glowPulseMs: 2200
     },
 
     /**
@@ -354,7 +669,65 @@ export const CONFIG = {
         maxDim: 0.55,             // extra darkness over the stage at zero wax
         scaleTiny: 0.8,           // candle held far: a small, weak pool
         scaleNormal: 1.0,
-        scaleHuge: 1.3            // candle held close: a wide, bright pool
+        scaleHuge: 1.3,           // candle held close: a wide, bright pool
+
+        // A draft drags the pool downwind of the candle, and a flame
+        // bent sideways throws less light forward (CONFIG.draft).
+        windLeanPx: 110,
+        windDim: 0.3,
+
+        // The "breath" when the puppet changes size (PRD 5.1): the pool
+        // swells and settles. A multiplier, so it works at any wax level.
+        breathScale: 1.12,
+        breathInMs: 110,
+        breathOutMs: 260
+    },
+
+    /**
+     * Landing (fx/DustPuff.js, PRD 5.1). The squash itself is the `land`
+     * pose in CONFIG.rig.poses; this is the dust and the camera.
+     */
+    land: {
+        minFallSpeed: 260,  // slower than this and a landing kicks up nothing
+        nudgeSpeed: 700,    // ...and only a drop faster than THIS moves the camera
+        nudgeMs: 120,
+
+        motes: 7,           // at Normal; scaled by the puppet's size
+        maxMotes: 40,
+        speedX: 90,         // dust is thrown sideways from under the feet...
+        speedY: 70,         // ...and a little up
+        gravityY: 260,      // before settling back down
+        lifeMs: 420
+    },
+
+    /**
+     * The size-change afterimage (fx/Afterimage.js, PRD 5.1): stamped
+     * copies of the puppet left behind as it grows or shrinks.
+     *
+     * width/height must hold the puppet at its BIGGEST with its limbs
+     * thrown out, or a stamp is clipped at the edges.
+     */
+    afterimage: {
+        count: 3,
+        width: 200,
+        height: 260,
+        gapMs: 55,          // one stamp every this long, so they fade in turn
+        startAlpha: 0.4,
+        fadeMs: 260,
+        risePx: 10          // they drift up a little as they go
+    },
+
+    /**
+     * Act backdrops (village, castle, forest...): black silhouettes painted
+     * faintly on the paper (ASSETS.md "~30% opacity"). Kept faint so the
+     * scenery never looks like a platform you could stand on.
+     */
+    backdrop: {
+        alpha: 0.2,            // was 0.3: the puppet and platforms must always read first
+        // Multiplied over the art to darken it. Today's backdrops are already
+        // near-black silhouettes, so this only matters for art with lighter
+        // tones -- it keeps any backdrop from ever out-shining the level.
+        tint: palette.frame
     },
 
     /** Soft dark edges and a whisper of film grain, baked once at boot. */
@@ -362,6 +735,21 @@ export const CONFIG = {
         innerRadius: 0.45,        // fraction of the screen left untouched
         edgeAlpha: 0.55,          // darkness in the very corners
         grainAlpha: 0.05          // strength of the grain specks
+    },
+
+    /** The gloved hand that points at the exit door as an act begins. */
+    pointer: {
+        showMs: 3500,          // how long it stays before fading
+        slideFromPx: 60,       // slides down from this far above...
+        slideMs: 400,          // ...over this long (Back.Out, PRD 5.1)
+        bobPx: 6,              // then bobs towards the door (PRD 5.1: +-6 px, 600 ms)
+        bobMs: 600,
+        gapPx: 8,              // the fingertip stops this far above the door
+        fadeMs: 300,
+        scale: 0.6,            // the 64 px glove, a little smaller than the door
+        glowRadius: 34,
+        glowAlpha: 0.5,
+        glowLiftPx: 20         // the glow sits behind the hand, not the fingertip
     },
 
     /** The exit door's glow, so the goal is visible from anywhere (PALETTE.md). */
@@ -372,10 +760,484 @@ export const CONFIG = {
         pulseMs: 1400
     },
 
-    /** Game over, when the wax reaches 0 (systems/CandleOut.js). */
+    /**
+     * Moths (objects/Moth.js, PRD 4.4 and 6.4). The two-frame flap alone
+     * looks stiff, so everything below layers code-driven motion on top of
+     * it. Tune the FEEL here; the act decides where they are.
+     */
+    moth: {
+        waxCost: 10,          // what touching one costs (PRD 4.4)
+        bodyWidth: 26,        // smaller than the art: a moth should feel
+        bodyHeight: 22,       // dodgeable, not like a flying brick
+
+        // Steering (PRD 6.4: toward the player, sin wobble, max speed 90).
+        maxSpeed: 90,
+        accel: 260,
+        noticeRadius: 420,    // beyond this it drifts back to where it started
+        wobbleMs: 1700,       // one slow rise and fall...
+        wobble: 420,          // ...this strong
+
+        // Wing-beats. Faster while climbing than while gliding down, and
+        // each downbeat lifts it a little, so the bob IS the wing-beat.
+        flapFpsClimb: 14,
+        flapFpsGlide: 6,
+        flapLift: 26,
+        flapSquashX: 1.08,    // wings down: wide and flat...
+        flapSquashY: 0.9,     // ...back to 1.0 on the upbeat
+
+        // Banking: the same damped spring the puppet's joints use.
+        bankStiffness: 120,
+        bankDamping: 0.8,
+        bankMaxDeg: 20,
+        bankPerSpeed: 0.22,   // degrees of lean per px/s sideways
+        facingThreshold: 8,   // ignore drift this small, or it flips constantly
+
+        // Flutter, so two moths never move identically.
+        jitter: 1.5,          // px (PRD 6.4)
+        jitterEveryMinMs: 120,
+        jitterEveryMaxMs: 200,
+        jitterEase: 0.18,
+        jitterPush: 40,       // how hard a nudge pushes the body
+
+        /**
+         * How far a lit lantern pulls (Act III). Wide enough that lighting
+         * one at the mouth of the corridor reaches the moths inside it,
+         * and no wider -- a lure that moved every moth on the stage would
+         * make the act a button press.
+         */
+        lureRadius: 420,
+
+        // Drawn to the flame: nearer the candle it works harder and shakes
+        // more, and very close it starts catching embers.
+        flameRadius: 260,
+        flameFlapBoost: 1.2,
+        flameJitterBoost: 2,
+        sparkNearness: 0.65,
+
+        // Swatted by a Huge puppet: spin, fall, come apart.
+        swatSpinPerSecond: 720,   // degrees (PRD 6.4)
+        swatUp: 120,
+        swatKeepX: 0.4,
+        swatFadeMs: 600,
+
+        /** The paper it bursts into (fx/MothEffects.js). */
+        flake: {
+            perBurst: 12,
+            maxFlakes: 60,
+            speedMin: 40,
+            speedMax: 140,
+            lifeMs: 700,
+            scale: 1.4,
+            gravityY: 420
+        },
+
+        /** Embers caught off the candle. */
+        spark: {
+            perPuff: 2,
+            maxSparks: 24,
+            everyMs: 260,
+            rise: 50,
+            drift: 20,
+            lifeMs: 420,
+            scale: 0.5
+        }
+    },
+
+    /**
+     * How hard each act is, in the order they are played (PRD 4.5). This
+     * is THE difficulty curve, and it is checked rather than trusted:
+     * tools/headless/test-curve.mjs reads every map and fails if its
+     * contents disagree with the row below, so the table and the levels
+     * cannot drift apart.
+     *
+     * `startWax` is out of CONFIG.wax.max, so an act that starts at 85
+     * honestly shows "WAX 85%" from its first frame -- the player can see
+     * they have been given less. `drainScale` multiplies the melt on top
+     * of the size multiplier: Act I is gentle at 0.8 so a new player can
+     * wander and read the hints, and by the finale the candle is already
+     * low before the fire is lit.
+     *
+     * `hints` is zero everywhere but act I on purpose: act I names the
+     * keys and no act tells the player its own answer.
+     *
+     * The rest of the row describes what the MAP must contain:
+     * `waxDrops` (`w`), `checkpoints` (`k`), `hints` (`?`), `moths` (`m`)
+     * and `vents` (`^`). Change a map and this row changes with it.
+     *
+     * If an act ever becomes unwinnable, the two numbers at the top are
+     * what to move, not the map.
+     *
+     * STILL TO DO (play-test pass 3): acts II, III and IV are down for a
+     * checkpoint lantern each, and act III for lanterns that lure moths.
+     * Their rows say `checkpoints: 0` because that is what their maps
+     * hold TODAY -- the row is raised in the same change that adds the
+     * lantern, so this file never describes a level that does not exist.
+     */
+    acts: [
+        {
+            name: 'I - learn your shadow',
+            startWax: 100, drainScale: 0.80,
+            waxDrops: 3, checkpoints: 2, hints: 3, moths: 0, vents: 0, lures: 0
+        },
+        {
+            name: 'II - The Giant',
+            startWax: 100, drainScale: 1.00,
+            waxDrops: 3, checkpoints: 0, hints: 0, moths: 0, vents: 0, lures: 0
+        },
+        {
+            name: 'III - Moths to the Flame',
+            startWax: 95, drainScale: 1.10,
+            waxDrops: 3, checkpoints: 0, hints: 0, moths: 4, vents: 0, lures: 2
+        },
+        {
+            name: 'IV - The Draft',
+            startWax: 90, drainScale: 1.20,
+            waxDrops: 2, checkpoints: 0, hints: 0, moths: 0, vents: 2, lures: 0
+        },
+        {
+            name: 'V - The Last Act',
+            startWax: 85, drainScale: 1.30,
+            waxDrops: 3, checkpoints: 0, hints: 0, moths: 0, vents: 1, lures: 0,
+            /**
+             * The finale borrows ONE idea from Act IV, and borrowing is
+             * all it does: a gust every 14 seconds instead of Act IV's 6.
+             * The finale already has a fire behind you and a crate to
+             * push, and a gust that lands on top of every push would be
+             * noise rather than a test. Long enough that a gust is an
+             * interruption you shelter from and then carry on.
+             */
+            draftIntervalSeconds: 14
+        }
+    ],
+
+    /**
+     * The loading screen (ui/LoadingCandle.js). Drawn entirely with
+     * Graphics: it runs before any art has loaded.
+     */
+    loading: {
+        minMs: 1100,           // held this long, or a cached load just flashes
+        gap: 40,               // candle bottom, above the middle of the screen
+        candleWidth: 26,
+        candleHeight: 86,
+        litSide: 0.4,
+        dishWidth: 56,
+        dishHeight: 12,
+        wickHeight: 7,
+        flameWidth: 20,
+        flameHeight: 34,
+        coreHeight: 0.6,
+        flicker: 0.07,
+        flickerMs: 140,
+        barWidth: 420,
+        barHeight: 18,
+        barInset: 3,
+        barGap: 36,            // below the middle
+        labelGap: 86
+    },
+
+    /**
+     * The title screen (scenes/TitleScene.js). CONTINUE only appears once
+     * an act past the first has been reached, so the card is a little
+     * taller then.
+     */
+    title: {
+        /** The curtain drawn back at each side, framing the menu. */
+        frameScale: 1.05,
+        frameWidth: 150,       // how much of each half still shows
+        openDelayMs: 500,      // the logo is read on the shut curtain first
+
+        logoY: 148,
+        logoScale: 0.58,
+        taglineY: 232,
+
+        /** A page of choices (ui/MenuPage.js). */
+        menu: {
+            y: 480,
+            width: 430,
+            wideWidth: 580,    // act select and settings need the room
+            padY: 40,
+            headingGap: 66,    // room above the list for a page heading
+            noteGap: 54        // ...and for a line of text under it
+        },
+
+        /** A page of reading (ui/TextPage.js). */
+        textPage: {
+            y: 360,            // centred on the stage: it IS the whole page
+            width: 720,
+            padX: 48,
+            padY: 30,
+            headingBlock: 56,  // room the heading takes
+            lineGap: 31,
+            backGap: 62,
+            /**
+             * Where the second column of a two-column row starts, measured
+             * from the left margin. One value for every reading page, so
+             * HOW TO PLAY and CREDITS line up with each other as well as
+             * with themselves. Wide enough to clear the longest label on
+             * either page ("E / Q or the wheel").
+             */
+            columnX: 234
+        },
+
+        /** The "quit" curtain call (scenes/CurtainCallScene.js). */
+        quit: {
+            thanksY: 300,
+            fadeMs: 700,
+            menuY: 430
+        },
+
+        /** Read on the HOW TO PLAY page. Keep each line short. */
+        howToPlay: [
+            'You are a shadow on a paper screen. The candle',
+            'behind you decides how big that shadow is.',
+            '',
+            ['A / D or arrows', 'walk'],
+            ['W, Up or Space', 'jump'],
+            ['E / Q or the wheel', 'candle closer / further away'],
+            ['1 / 2 / 3', 'tiny / normal / huge'],
+            ['R', 'start the act again'],
+            ['Esc or P', 'pause'],
+            '',
+            'HUGE jumps higher, pushes crates and swats moths,',
+            'but burns the candle twice as fast. TINY fits',
+            'where nothing else does, and burns slowest.',
+            '',
+            'When the wax runs out, the curtain falls.'
+        ],
+
+        /** Read on the CREDITS page. The full list is in CREDITS.md. */
+        credits: [
+            'Created for the NASCON',
+            'Vibe Coding Game Dev Competition.',
+            '',
+            'Ayesha Muzammil',
+            'Husnain Riaz',
+            'Haziq Haroon',
+            'Aiza Kashif',
+            '',
+            ['Engine', 'Phaser 3 and Vite'],
+            '',
+            'No code was copied from another game.',
+            '',
+            'Thank you for watching.'
+        ]
+    },
+
+    /**
+     * The theatre curtain (ui/Curtain.js). The painted halves are 660 px
+     * each against a 1280 px stage, so butting them together leaves only
+     * 40 px of overlap -- and the art's inner edges fade to transparent,
+     * which shows as a seam of stage down the middle. The halves are
+     * scaled up until they overlap by this much.
+     */
+    curtain: {
+        overlapPx: 160
+    },
+
+    /**
+     * The card shown whenever the show stops (systems/Death.js). Every
+     * death gets the SAME card; only the reason line differs.
+     */
+    death: {
+        heading: 'THE CURTAIN FALLS',
+        width: 520,
+        y: 360,
+        depth: 95,             // over the shut curtain
+        blameMs: 1200,         // a hit this recent is what emptied the wax
+
+        reasons: {
+            fell: 'You fell through the stage.',
+            wax: 'The candle went out.',
+            fire: 'The fire caught you.',
+            moth: 'The moths took the last of your wax.'
+        }
+    },
+
+    /** Game over, when the wax reaches 0 (systems/Death.js). */
     candleOut: {
         limpMs: 700,           // the puppet hangs limp this long before the curtain
         messageFadeMs: 400     // "The candle went out" fades in on the curtain
+    },
+
+    /**
+     * The results card shown when an act is finished (ui/ResultsCard.js,
+     * PRD 4.10, 5.1). It appears on the closed curtain, before the next
+     * act is announced.
+     */
+    results: {
+        /**
+         * Laid out top to bottom, each block clear of the last: heading,
+         * the three numbers, a gap, the rating candles, then the way on.
+         * The card is sized from these, so adding a row means raising
+         * `height` and nothing else moves on top of anything.
+         */
+        width: 480,
+        height: 430,
+        padX: 46,
+        padY: 44,
+        headingGap: 84,        // heading down to the first number
+        rowGap: 42,
+        candlesGap: 74,        // last number down to the candles
+        promptGap: 64,         // candles down to "Continue"
+
+        countMs: 600,          // the numbers climb from 0 (PRD 5.1)
+        promptFadeMs: 320,
+        promptPulseAlpha: 0.45,
+        promptPulseMs: 900,
+
+        /**
+         * One to three candles, from the wax left. A player who restarted
+         * this many times or more loses one, however tidy the run they
+         * finally managed -- but never below one: finishing counts.
+         */
+        rating: {
+            three: 0.6,
+            two: 0.3,
+            restartsForPenalty: 3
+        },
+
+        candleCount: 3,
+        candleGap: 58,
+        candleWidth: 14,
+        candleTall: 44,
+        candleShort: 16,
+        flameScale: 0.55,
+        candlePopMs: 180,
+        candlePopGapMs: 150    // one at a time (PRD 5.1)
+    },
+
+    /**
+     * The act card shown on the closed curtain between acts
+     * (scenes/ActCardScene.js, PRD 5.1). The title ink-writes letter by
+     * letter, the story line fades in under it, then the curtain opens on
+     * the act already built behind it.
+     */
+    actCard: {
+        ofY: 232,              // "ACT III OF V", above the act's own title
+        titleY: 300,           // the two lines, measured down the stage
+        storyY: 400,
+        storyFadeMs: 500,
+        holdMs: 1200,          // how long the finished card stays up
+        openDelayMs: 200       // a beat after the new act is built, then open
+    },
+
+    /**
+     * The ending: the puppet bows, the candle burns out by itself, the
+     * curtain closes and the last words are written on it (PRD 4.7, 5.1).
+     */
+    ending: {
+        bowInMs: 900,          // the puppet folds into the bow...
+        bowHoldMs: 700,        // ...holds it...
+        bowOutMs: 700,         // ...and straightens up
+        bows: 2,               // how many times it bows before the lights go
+        zoomTo: 1.3,           // the camera creeps in on the bow (PRD 5.1)
+        zoomMs: 6000,
+        dimStartMs: 2200,      // when the candle starts to go
+        dimMs: 3000,           // ...and how long it takes to die
+        curtainDelayMs: 600,   // after the light is gone, the curtain closes
+        finDelayMs: 500,       // then the last words are written
+
+        /**
+         * The last words of the show, written in ink on the shut curtain.
+         * Here rather than typed into EndScene so the ending can be said
+         * differently without touching the scene (CODE_RULES.md rule 5).
+         */
+        finalWords: 'The End',
+        promptFadeMs: 600,
+        /**
+         * The way out is written in the MIDDLE of the shut curtain, in
+         * the place the last words just left -- not down at the bottom.
+         *
+         * WHY: the programme scrolls up the curtain and its last lines
+         * are still low on the stage when it ends, so a prompt down there
+         * sits on top of them. The centre is empty by then, and the line
+         * reads as taking the place of the words rather than fighting
+         * the credits for the same strip of velvet.
+         */
+        promptRisePx: 36,      // it starts this far below centre and rises
+        /**
+         * The programme that scrolls up the shut curtain at the very end
+         * (ui/CreditsScroll.js). `speed` is px a second, and the scroll
+         * lasts as long as the column is tall -- so adding a name makes
+         * it longer, never faster.
+         */
+        credits: {
+            startBelow: 40,    // begins this far under the stage...
+            endAbove: 120,     // ...and finishes this far over the top
+            speed: 62,
+            roleGap: 34,       // under a role, before its name
+            nameGap: 54,       // under a name, before the next role
+            gapHeight: 40,     // a blank entry
+            startDelayMs: 900, // a beat after the last words, before it begins
+            /**
+             * How long the way out is left on screen before the show
+             * returns to the menu on its own.
+             *
+             * It has to outlast promptFadeMs by enough to READ the line:
+             * at 1200 the prompt had barely finished rising into place
+             * before the ending left anyway, which made the offer look
+             * like a flicker.
+             */
+            holdMs: 4000
+        },
+
+        /**
+         * Read as a theatre programme: a role, then who did it. `gap`
+         * leaves a blank line. The full list is in CREDITS.md.
+         */
+        programme: [
+            { name: 'SHADOW PLAY' },
+            { gap: true },
+            { role: 'A SHADOW-PUPPET SHOW IN FIVE ACTS' },
+            { gap: true },
+            { gap: true },
+            { role: 'MADE BY' },
+            { name: 'Ayesha Muzammil' },
+            { name: 'Husnain Riaz' },
+            { name: 'Haziq Haroon' },
+            { name: 'Aiza Kashif' },
+            { gap: true },
+            { role: 'CREATED FOR', name: 'NASCON Vibe Coding Game Dev Competition' },
+            { role: 'ENGINE', name: 'Phaser 3 and Vite' },
+            { gap: true },
+            { gap: true },
+            { role: 'NO CODE WAS COPIED FROM ANOTHER GAME' },
+            { gap: true },
+            { gap: true },
+            { name: 'Thank you for watching the show' }
+        ],
+
+        groundY: 600,          // where the puppet stands on the stage
+        puppetScale: 3.2,      // a curtain call is close up, not a wide shot
+        lightAtHeight: 0.55    // the candle it holds, up its own height
+    },
+
+    /**
+     * The checkpoint lantern `k` (objects/Lantern.js). Lighting one moves
+     * where the act restarts AND remembers the wax you had, because
+     * respawning with the last drop you arrived on is unwinnable.
+     */
+    lantern: {
+        standOffsetY: 6,       // it sits on its tile, not floating in it
+        glowRadius: 110,
+        glowMinAlpha: 0.3,
+        glowMaxAlpha: 0.5,
+        glowPulseMs: 1900,
+        /**
+         * How long a LURE lantern (`l`, Act III) holds the moths before it
+         * gutters out and they come back. Long enough to walk the corridor
+         * at a normal pace, short enough that standing still wastes it.
+         */
+        lureSeconds: 6,
+        lureFadeMs: 900,       // the glow dying, so the player sees it end
+
+        flareAlpha: 0.95,      // the moment it catches...
+        flareScale: 1.7,
+        flareMs: 520,
+
+        /** A lit lantern pulls moths to it for this long (act 3). */
+        lureSeconds: 5,
+        lureRadius: 320
     },
 
     /** How a wax drop `w` moves. How much wax it gives is CONFIG.wax.dropAmount. */
@@ -383,7 +1245,14 @@ export const CONFIG = {
         bobPx: 6,              // gentle up-and-down so it reads as a pickup
         bobMs: 900,
         pickupRisePx: 24,      // floats up as it fades when taken...
-        pickupMs: 250          // ...over this long
+        pickupMs: 250,         // ...over this long
+
+        // A soft warm halo so a drop reads as a pickup even in the dark
+        // (PALETTE.md: flameCore is the "wax pickup sparkle").
+        glowRadius: 26,
+        glowMinAlpha: 0.3,
+        glowMaxAlpha: 0.7,
+        glowPulseMs: 1100      // a slow twinkle, never a blink
     },
 
     /**
@@ -395,6 +1264,7 @@ export const CONFIG = {
         easeInSoft: 'Cubic.Out',
         easeOut: 'Cubic.In',
         easeLoop: 'Sine.InOut',
+        easeSweep: 'Cubic.InOut',   // long travel: the curtain halves
 
         panelInMs: 300,        // a paper panel unfolds
         panelOutMs: 200,       // ...and folds away faster
@@ -404,7 +1274,8 @@ export const CONFIG = {
 
         curtainMs: 700,        // curtain close/open sweep
         curtainOpenMs: 900,
-        quickRestartMs: 450,   // the "curtain flick" on R or death
+        quickRestartMs: 450,   // the "curtain flick" on R or death...
+        flickAmount: 0.4,      // ...which only draws the halves this far across
         actCardMs: 1600,       // how long an act title stays on screen
 
         shake: {
@@ -441,7 +1312,79 @@ export const CONFIG = {
         mute: ['M'],
         fullscreen: ['F'],
         hideHud: ['H'],
+        devNextAct: ['N'],     // only when DEBUG is true (PRD 4.6)
+        devPrevAct: ['B'],
         debug: ['F1']
+    },
+
+    /**
+     * How the HUD candle shows the BURN RATE (PRD 4.3.1): "bigger shadow =
+     * faster burn" must be visible in a trailer clip with no voice-over.
+     * The rate is the size's waxMultiplier (Tiny 0.75, Normal 1, Huge 2).
+     */
+    hud: {
+        burnTweenMs: 200,          // the flame eases to its new size, like the puppet
+        flameScalePerRate: 0.6,    // flame size = 1 + (rate - 1) x this: Tiny 0.85, Huge 1.6
+        flickerSpeedPerRate: 1.0,  // flicker speed = 1 + (rate - 1) x this: Huge twice as fast
+        dripsPerSecond: 1.0,       // at x1. Grows with rate SQUARED: Tiny 0.56/s, Huge 4/s
+        dripFallMs: 2000,          // a drip's run down the candle at x1, divided by the rate
+        dripPoolSize: 12,          // drips are made once and reused (CODE_RULES 9)
+        actTagX: 360,          // "ACT III / V" in the band, clear of the burn tag
+        dripWidth: 4,              // sized for the small candle in the HUD band
+        dripHeight: 9,
+
+        /** The HUD candle's shape (ui/WaxCandle.js), small enough for the band. */
+        candle: {
+            width: 14,
+            maxHeight: 32,
+            lightSide: 0.4,        // the brightest stripe sits this far across
+            poolHeight: 4,         // the melted pool on top
+            dishWidth: 26,
+            dishHeight: 5,
+            baseWidth: 16,
+            baseHeight: 4,
+            wickHeight: 4,
+            flameScale: 0.6,       // of the 18x26 flame texture
+            flameLift: 2,
+            haloScale: 0.35,       // of the 128 px soft_glow
+            haloLift: 9
+        },
+
+        /** Its shading, as palette mixes (PALETTE.md: no colour typed elsewhere). */
+        candleShade: {
+            edgeWarmth: 0.22,      // wax towards flameOuter at the top edges
+            baseDim: 0.12,         // wax towards the dark frame at the bottom middle
+            edgeDim: 0.4,          // ...and at the bottom edges
+            poolGlow: 0.45,        // the melted pool, wax towards flameCore
+            dishLit: 0.35,         // the dish's top, shadow towards flameOuter
+            dishShine: 0.55,       // the dish's front rim, shadow towards flameCore
+            baseLit: 0.18
+        },
+
+        /** The wax panel in the HUD band (ui/WaxPanel.js). */
+        waxPanel: {
+            width: 176,
+            height: 56,
+            candleX: 24,           // the candle's centre, from the panel's left
+            candleBottom: 46,      // where the wax stands, from the panel's top
+            labelX: 46             // "WAX 87%" starts here
+        },
+        windLeanDeg: 32,           // the HUD flame bends when a draft blows
+        windHaloDim: 0.45,         // ...and its halo thins
+
+        dangerFraction: 0.25,      // below this much wax, the panel pulses in danger
+        dangerPulseAlpha: 0.35,
+        dangerPulseMs: 420,
+        idleMs: 150,               // no wax news for this long = paused, so no drips
+        // The burn-rate tag uses words, not "x2": playtest feedback was that
+        // nobody knows what "x1" means. Nothing is shown at Normal.
+        burnFastText: 'BURNING FAST',
+        burnSlowText: 'BURNING SLOW',
+
+        tagPopScale: 1.7,          // the tag pops from this size...
+        tagPopMs: 350,             // ...back to 1 over this long
+        tagPulseAlpha: 0.5,        // while Huge the tag throbs down to this alpha...
+        tagPulseMs: 420            // ...and back, this fast
     },
 
     /**
@@ -451,7 +1394,50 @@ export const CONFIG = {
         panelRadius: 10,       // rounded corners of cards and dialogue boxes
         panelEdgePx: 2,        // the panelEdge border
         panelTiltDeg: 2,       // panels land slightly crooked, like paper
+        titlePadX: 28,         // the act title's plate: room either side...
+        titlePadY: 6,          // ...and above and below the letters
         menuSpacing: 58,       // vertical gap between menu items
+        /** The gold rule under a panel's heading (ui/PaperPanel.js). */
+        ornament: {
+            width: 150,
+            gap: 34,
+            diamond: 5,
+            thickness: 2,
+            alpha: 0.85,
+            drop: 26           // how far under the heading's baseline
+        },
+
+        /** A menu item's own plate, so a choice reads as a button. */
+        button: {
+            width: 330,
+            height: 44,
+            radius: 8,
+            restAlpha: 0.0,    // invisible until it is the selected one
+            selectedAlpha: 1,
+            underlineMs: 140,  // the ink line drawing left to right (PRD 5.1)
+            underlineDrop: 17, // below the label's centre
+            underlineThickness: 2,
+            pressScale: 0.95,
+            pressMs: 90
+        },
+
+        /**
+         * A slider row, measured from the card's LEFT edge so every row
+         * lines up: label, then the bar, then the - and + at the right.
+         */
+        dialLabelX: 54,
+        dialBarX: 250,
+        dialInset: 44,         // the + sits this far in from the right edge
+        dialArrowGap: 40,      // and the - this far left of the +
+
+        /** The bar's notches: identical rectangles, not characters. */
+        notchWidth: 9,
+        notchGap: 6,
+        notchHeight: 20,
+        notchEmptyAlpha: 0.35,
+        handScale: 0.8,        // the pointing hand beside the selected item
+        handGap: 18,
+        padDeadzone: 0.5,      // how far a stick must move to count as a press
         hoverScale: 1.05,      // a selected item grows this much
         hoverMs: 120,          // ...over this long
         pauseDim: 0.6          // how dark the paused game behind the menu goes
@@ -464,9 +1450,38 @@ export const CONFIG = {
     },
 
     audio: {
+        /**
+         * Background music on or off. ON. It was switched off during
+         * play-testing because it got irritating on repeat -- the fix was
+         * the quieter default mix below and a music dial in Settings,
+         * not silence. M still mutes everything.
+         */
+        musicOn: true,
+
+        /**
+         * The DESIGN mix: how loud each kind of sound is relative to the
+         * others, set by us. The player's own sliders multiply these, so
+         * turning music up to 10 still keeps it under the effects.
+         */
         masterVolume: 0.8,
-        musicVolume: 0.4,
+        musicVolume: 0.2,      // was 0.4: the theme was far too loud
         sfxVolume: 0.8,
-        musicCrossfadeMs: 800
+        musicCrossfadeMs: 800,
+
+        /**
+         * The player's sliders (Settings). 0-10 as SECURITY.md rule 12
+         * requires, saved in the one record. `maxLevel` is what 10 means.
+         */
+        maxLevel: 10,
+        defaultLevels: { master: 8, music: 5, sfx: 8 },
+
+        /**
+         * The stand-in sounds made in the browser for files that do not
+         * exist yet (systems/SynthSounds.js). Deliberately under the real
+         * recordings: they are a floor, not a finish.
+         */
+        synthVolume: 0.5,
+        synthAttack: 0.008,    // seconds; any less and every sound clicks
+        synthNoiseSeconds: 1   // the reused white-noise buffer
     }
 };

@@ -21,7 +21,7 @@
 | **Deadline** | **Sun 18 Oct 2026, 09:30 AM** (Day 3, confirmed from the official handbook). Aim to be submitted by 09:00 |
 | Submit | A **Google Drive trailer link** and a **PUBLIC GitHub repo with all code and assets**. A deployed URL is optional |
 | First-round judging | **Only the 3-minute trailer.** At least **2 minutes must be real screen-recorded gameplay** (judges may recreate any moment, so it must be genuine), and the trailer **must show how each theme is used** |
-| Second round | The **top 5 trailers** get their games **played by the judges**: the build must run start to "Fin." without crashing |
+| Second round | The **top 5 trailers** get their games **played by the judges**: the build must run start to the last words without crashing |
 | Rules | Any engine. Free/AI/self-made assets OK (credit them). Reskins and copied game code are not allowed. |
 
 ### 2.1 Scoring (official handbook)
@@ -37,7 +37,7 @@
 | Audio | rest | Music, crackle, one sound per action |
 | Innovation | rest | Size = distance from the candle |
 | Stability | rest | Feature freeze, full playthrough on the final build, no console errors |
-| Completeness | rest | Title → every act → "Fin." with no dead ends. **3 polished acts beat 5 rough ones** |
+| Completeness | rest | Title → every act → the last words with no dead ends. **3 polished acts beat 5 rough ones** |
 | Trailer quality | rest | 8+ hours set aside for it (section 11), shot list written before the freeze |
 
 The handbook gives the theme split; the other criteria share the remaining 70% (weights not given).
@@ -117,7 +117,7 @@ The player chooses how close the candle is, in three steps. The shadow smoothly 
 
 - Each level starts with `wax = 100`.
 - Wax drains at `BASE_DRAIN` per second × the size multiplier above. Tune `BASE_DRAIN` so a level takes ~60–120 s at a relaxed pace (start with 100 / 120 s).
-- **Wax drops** (pickup `w`) restore +20 wax.
+- **Wax drops** (pickup `w`) restore **+8 wax** (`CONFIG.wax.dropAmount`), capped at 100. Deliberately small: at +20 two drops paid back whatever an act had cost, every act ended at 100%, and the wax stopped being a clock. A drop is a breath, not a refill.
 - As wax falls below 30, the screen's glow dims and the flame flickers harder (pure visual warning).
 - `wax = 0` → the candle goes out → the curtain closes → restart the level.
 
@@ -127,7 +127,7 @@ This is the multi-theme synergy (10 marks) and it must read in a trailer clip **
 
 - **HUD flame scales with the burn rate:** small and calm when Tiny, taller and flickering hard when Huge (eased with the size tween).
 - **Wax drips run down the HUD candle** at a rate tied to the size multiplier: an occasional drip when Tiny, a steady stream when Huge.
-- **A burn-rate tag next to the candle** (`×0.75`, `×1`, `×2`) that pops and pulses when the size changes, in the accent colour when Huge.
+- **A burn-rate tag next to the candle** in plain words, "BURNING FAST" (accent colour) when Huge and "BURNING SLOW" when Tiny, nothing at Normal; it pops and pulses when the size changes. The candle's label reads "WAX 87%". *(Changed 2026-10-17: the original `×0.75 / ×1 / ×2` tag confused playtesters.)*
 - The **light pool already grows and shrinks** with size (`SizeEffects`); keep it.
 - All numbers in `CONFIG.wax` / `CONFIG.hud`; nothing reacts except to `SIZE_CHANGED` and `WAX_CHANGED`.
 
@@ -140,18 +140,19 @@ Acceptance: a person who has never seen the game watches a 5-second clip of Norm
 | `#` | Painted wall/ground | Solid tile |
 | `P` | Player start | |
 | `D` | Exit (stage door) | Touching it ends the act |
-| `w` | Wax drop | +20 wax, then disappears |
+| `w` | Wax drop | +8 wax, then disappears |
 | `C` | Crate | Solid. Only movable when the player is **Huge** (otherwise immovable) |
-| `S` | Heavy switch | Pressed only when the player is Huge and standing on it, or a crate is on it. Opens matching gate `G` |
+| `S` | Heavy switch | Pressed only when the player is Huge and standing on it, or a crate is on it. Opens matching gate `G`, and **keeps it open for `CONFIG.switchGate.holdSeconds` after the weight leaves** -- a shrinking ring of light on the plate and a tick a second count that time down (`fx/CountdownRing.js`). Weight back on the plate stops the clock |
 | `G` | Gate | Solid until its switch is pressed |
 | `~` | Paper (burnable floor/wall tile) | Solid, but can catch fire |
 | `f` | Fire start | A burning paper tile. Fire spreads to neighbouring `~` tiles every `FIRE_SPREAD_SECONDS` (start with 2.5 s). A burnt tile becomes a hole (non-solid) after 1 s of burning. Touching a burning tile = lose 15 wax + knockback |
-| `m` | Moth | Shadow moth that flies toward the player in a gentle sine path. Contact = lose 10 wax. Huge player touching it destroys it ("swat") |
-| `^` | Draft window | Every `DRAFT_INTERVAL` s (start 6 s), a gust blows for 1.5 s, telegraphed by fluttering curtain lines 1 s before. During a gust the candle is pushed **far** (player forced to Tiny) unless the player is standing in a `|` shelter zone |
-| `|` | Shelter | Marks tiles where drafts don't reach |
+| `m` | Moth | Shadow moth that flies toward the player in a gentle sine path. Contact = lose 10 wax. Huge player touching it destroys it ("swat"). **A lit lure lantern `l` beats the player every time**: while one is burning nearby the moth goes to it instead |
+| `^` | Draft window | Where the gust blows IN. An open window is drawn at each one, its curtain fluttering a second before a gust. **The cycle** (all of it in `CONFIG.draft`): calm for `intervalSeconds` (6) — a thin bar under the act title counts it down — then `telegraphSeconds` (1) of warning (curtains flutter, a rising whistle, a "GUST!" card in the HUD, the first streaks), then `gustSeconds` (1.5) of wind. **During a gust**, out in the open: the candle is pushed far, so the player is forced to Tiny and cannot grow; the puppet is **shoved downwind** (`pushTiny` hard, `pushNormal` barely, and far more in the air where there is nothing to brace against); and the struggling flame burns wax `openDrainScale`× faster. **It is visible**: streaks of air and paper scraps tear across the whole stage left to right, the windmill spins up, and the pool of candlelight leans downwind and dims — in the HUD too, where the flame bends over |
+| `|` | Shelter | A lit paper screen with a soft calm glow behind it, visible from across the room. The only place a draft does not reach: inside one the streaks stop, the flame stands straight, the wax burns normally and nothing pushes you. Stepping out mid-gust catches you again |
 | `=` | One-way platform | Thin shelf: jump up through it from below, stand on top, Down + Jump to drop through |
-| `k` | Checkpoint lantern | Lights on touch; respawn here with the wax you had when you lit it (Acts 4–5) |
-| `?` | Tutorial hint | Hand-lettered text painted on the paper; the text comes from the level file's `hints` list in order |
+| `k` | Checkpoint lantern | Lights on touch; respawn here with the wax you had when you lit it. Two in Act I (so a first death costs seconds, not the act); later acts have none |
+| `l` | Lure lantern | The same lantern art, but it saves nothing. Lights on touch, and for `CONFIG.lantern.lureSeconds` every moth within `CONFIG.moth.lureRadius` flies to IT instead of the puppet -- moths go to lights. Then it gutters out and they come back. Act III only |
+| `?` | Tutorial hint | Hand-lettered text painted on the paper; the text comes from the level file's `hints` list in order. **Act I only** (see 4.5) |
 | `.` | Empty | |
 
 Falling off the bottom of the screen (through a burnt hole) = restart the level.
@@ -163,10 +164,22 @@ Levels are 32 columns × 18 rows of 40 px tiles, written as arrays of strings in
 | Act | Title | Teaches |
 | --- | --- | --- |
 | 1 | "The Lighting of the Candle" | Move, jump, wax timer, Normal ↔ Tiny (crawl through a gap) |
-| 2 | "The Giant" | Huge: high ledge, push crate onto switch to open gate |
-| 3 | "Moths to the Flame" | Moths; swat them when Huge, but Huge burns wax fast — choose when |
-| 4 | "The Draft" | Draft windows forcing Tiny; time your growth between gusts, use shelters |
-| 5 | "The Last Act" | Burning paper chases you across the stage; everything combined; finale |
+| 2 | "The Giant" | Huge: high ledge, push crate onto switch to open gate. **The gate is TIMED**: taking the weight off the switch does not slam it -- the plate springs up and a ring of light on it shrinks away over `CONFIG.switchGate.holdSeconds` (3), ticking once a second, before the gate drops. So the act has two answers: push the crate on and hold it open for good, or stand on it as Huge, jump clear, shrink (Huge does not fit the 3-tile doorway) and run the gap before the ring empties. Standing back on the plate stops the clock |
+| 3 | "Moths to the Flame" | Moths; swat them when Huge, but Huge burns wax fast — choose when. **Lure lanterns** (`l`) stand at each mouth of the 3-tile corridor: walk into one and it catches, and for a few seconds every moth near it abandons the puppet and flies to the light, then it gutters out and they come back. So each gauntlet has two answers — spend the lure and walk through, or go Huge and swat, which costs wax. The corridor is 3 tiles and Huge is 4, so inside it the lure is the only one of the two that fits |
+| 4 | "The Draft" | Draft windows forcing Tiny; time your growth between gusts, use shelters — **and ride a gust across the gap**. The floor has a five-tile hole, wider than any jump in the game. The only way over is to be in the open when the gust hits (which means Tiny, because the gust allows nothing else) and to jump INTO it: the wind carries you across. That is the act's puzzle and its trailer moment. Shape: a screen beside the start so the first gust teaches rather than punishes → an open run to a second screen, timed against the countdown bar → the gap → a screen to recover in → a 3-tile climb needing Huge, which has to start the moment a gust ends |
+| 5 | "The Last Act" | Burning paper chases you across the stage; everything combined; finale. The chase is unchanged — run, crawl Tiny under the wall, climb the stone block as Huge, squeeze Normal under the slab — and then **the final exam** in the last eight tiles: a lit screen `|` to shelter in from the act's one borrowed gust (a window `^`, but every `CONFIG.acts[4].draftIntervalSeconds` = 14 s, far rarer than Act IV's 6, because this act already has a fire in it); a crate `C` only Huge can shove the one tile to the last ledge; and that ledge is **four tiles**, one more than any jump in the game, so the crate is the step and not a shortcut |
+
+**The difficulty curve** lives in one place, `CONFIG.acts`, so it can be read and tuned as a single shape rather than hunted for act by act. Each act starts with a little less candle than the last and burns it a little faster:
+
+| Act | Starting wax | Drain | Wax drops | Checkpoints | Hints |
+| --- | --- | --- | --- | --- | --- |
+| I | 100 | ×0.80 | 3 | 2 | 3 |
+| II | 100 | ×1.00 | 3 | 0 | 0 |
+| III | 95 | ×1.10 | 3 | 0 | 0 |
+| IV | 90 | ×1.20 | 2 | 0 | 0 |
+| V | 85 | ×1.30 | 3 | 0 | 0 |
+
+**Teaching happens once.** Act I is the only act with anything written on the stage, and what it writes is the keyboard: walk, jump, move the candle, pick a size, restart. It never says what a gap or a crate or a moth is for. From Act II on there is no text on the stage at all — the shape of the level, the countdown bar and the HUD are the whole explanation.
 
 Example (Act 1 draft; Claude Code may refine it but must keep it solvable). The wall at column 14 leaves a 1-tile gap at floor level that only Tiny fits through; the 2-tile step on the right needs Normal's jump; the door `D` waits on top:
 
@@ -215,12 +228,12 @@ Example (Act 1 draft; Claude Code may refine it but must keep it solvable). The 
 - **Title screen:** a curtain, the candle, title "Shadow Play", "Press Space to begin the show".
 - **Act cards:** between levels, the curtain closes and opens on "Act II — The Giant" (text on curtain).
 - **Story text:** one or two lines per act card, e.g. *"The old puppeteer has one candle left. One last show."*
-- **Ending:** after Act 5, the candle burns out by itself as the puppet takes a bow; "Fin."
+- **Ending:** after Act 5, the candle burns out by itself as the puppet takes a bow; **"The End"** (`CONFIG.ending.finalWords`)
 - **Game over (wax = 0):** curtain closes, "The candle went out" → press R.
 - **Act select:** the title screen has "Begin the show" and "Choose an act" (only unlocked acts are clickable). Judges in the top 5 can jump straight to any act they've unlocked.
 - **Pause menu:** Resume, Restart act, Act select, Sound on/off, Reduce motion & flicker on/off.
 - **Act results card:** after each exit door, the curtain shows the act time, wax left and number of restarts, plus a 1–3 candle rating based on wax left (`CONFIG.ratings`). Kept in memory only, no online scores.
-- **Credits screen:** reachable from the title screen and shown after "Fin.", reading from the same list as `CREDITS.md`.
+- **Credits screen:** reachable from the title screen and shown after the last words, reading from the same list as `CREDITS.md`.
 
 ### 4.8 Game feel and quality of life (modern 2D standards)
 
@@ -234,9 +247,9 @@ These are small, cheap features players expect from a 2D game today. All their n
 | Acceleration and friction | Player reaches top speed in ~0.1 s and stops in ~0.08 s; not instant, not floaty |
 | Fast fall | Gravity ×1.6 while falling, so jumps feel snappy |
 | Fast restart | Death or R → back in control in under 1 second (a short curtain flick, not the full act card) |
-| Mid-act checkpoint | Map symbol `k`: a small lantern. Touching it lights it and saves position **and wax at that moment**. Used once in Acts 4 and 5 only |
+| Mid-act checkpoint | Map symbol `k`: a small lantern. Touching it lights it and saves position **and wax at that moment**. Two in Act I; none after it |
 | Hit feedback | On damage: 80 ms hit-stop (pause physics), white-hot flash on the puppet, camera shake, short invulnerability (0.8 s, blinking) |
-| On-screen tutorial hints | Act 1–2 show hand-lettered hints painted on the paper ("Q / E: move the candle", "Huge can push crates"), as map symbols `?` with the text in the level file |
+| On-screen tutorial hints | **Act I only, and they name the keys, never the answer** — "A / D or arrows to walk", "Q and E move the candle", "1 2 3 pick a size". Map symbol `?`, text in the level file. Acts II–V declare no hints at all: once the player knows the keyboard, working out what the stage wants is the game |
 | Frame-rate independence | All movement and timers use `delta`, so the game plays the same at 60 and 144 Hz |
 | Accessibility | "Reduce motion & flicker" option (see 5.1); keyboard and gamepad both fully supported; text at least 24 px |
 | Audio mix | Separate volumes for music and SFX in `config.js`; music crossfades between acts; sound starts only after the first key press (browser autoplay rule) |
@@ -322,7 +335,7 @@ We compared Shadow Play against three well-known 2D games, for **basic features 
 | **Device-aware button prompts** | Celeste, Hollow Knight | add | Whenever a key is shown (tutorial, hints, menus), show the keyboard key or the gamepad button depending on the last device used |
 | **Assist options** | Celeste (Assist Mode) | add | Off by default: "Slower wax" (50% drain), "Invincible to moths and fire", "Skip this act" (offered after 5 restarts in one act). Using them is fine, and results show a small "assist" mark |
 | **Pause on gamepad disconnect** | Hollow Knight | add | Auto-pause with "Controller disconnected" |
-| **Total stats at the ending** | Celeste | add | After "Fin.": total time, total restarts, candles earned (ratings) across all acts |
+| **Total stats at the ending** | Celeste | add | After the last words: total time, total restarts, candles earned (ratings) across all acts |
 | **Death animation before respawn** | Limbo | have (4.2.1, 5.1) | |
 | **Audio unlock on first input** | Web games | have (4.8) | |
 | **Page polish** | Web games | add | Browser tab title "Shadow Play", a candle favicon, a meta description, a link-preview image (`og:image`) for when the link is shared, and a simple CSS loading screen (candle + "Loading…") shown before Phaser starts |
@@ -359,7 +372,7 @@ Everything on screen moves with intent: nothing pops in or out instantly. All du
 | Candle out (game over) | Flame shrinks and dies, a smoke wisp rises, the glow fades to near-black over 600 ms, the puppet goes limp (see 4.2.1), then the curtain closes and "The candle went out" ink-writes in |
 | Pause | The game dims to 60% with a warm vignette; the pause card drops in; on resume it lifts out and the dim fades (200 ms) |
 | Act select / credits / menus | Paper cards slide in from below with a 2–4° random tilt and settle with `Back.Out`, staggered 60 ms apart |
-| Ending | The camera slowly zooms 1.0 → 1.15 on the bow; the candle burns out by itself; the curtain closes; "Fin." ink-writes; applause swells; credits scroll up like a theatre programme |
+| Ending | The camera slowly zooms 1.0 → 1.15 on the bow; the candle burns out by itself; the curtain closes; **"The End"** ink-writes; applause swells; credits scroll up like a theatre programme; then the way out (`Press Space for the main menu`) **rises into the middle of the curtain, into the place the last words left** — not along the bottom, where the programme's closing lines are still passing |
 
 #### Dialogue boxes, hints and cards
 
@@ -368,7 +381,7 @@ The same "paper scrap" component (`ui/PaperPanel.js`) is used for tutorial hints
 - **Text:** a typewriter reveal (`CONFIG.anim.textCps`, default 40 characters a second) with a faint tick every few letters; Space or click finishes the text instantly, a second press closes it.
 - **Idle:** a very gentle float (±2 px, 2.5 s `Sine.InOut`).
 - **Disappear:** folds up and fades (200 ms, `Cubic.In`).
-- **Hints painted on the stage** (`?` symbols) ink-bleed in when the player comes within 4 tiles, and fade out when they walk away.
+- **Hints painted on the stage** (`?` symbols, Act I only) ink-bleed in when the player comes within 4 tiles, and fade out when they walk away.
 - **Results card:** numbers count up from 0 (600 ms); the 1–3 candle icons pop in one at a time (`Back.Out`, 150 ms apart, a chime each); the best result glows.
 - **Toasts** (e.g. "Checkpoint lit"): slide in from the top, stay 1.5 s, slide out.
 
@@ -438,7 +451,7 @@ src/
     Crate.js
     Moth.js
     FireGrid.js           # paper tiles, fire spread, holes
-    Draft.js              # gust timer, telegraph, forces Tiny
+    DraftWind.js          # gust timer, telegraph, push, forces Tiny
   levels/
     act1.js … act5.js     # each exports { title, story, hints: [strings], map: [32-char strings] }
     index.js              # ordered list of acts
@@ -469,7 +482,10 @@ README.md                 # how to play, controls, theme explanation, credits li
   - **Flutter noise:** small random jitter (±1.5 px, new target every 120–200 ms, smoothed) so two moths never move identically.
   - **Drawn to the flame:** flapping speeds up and the jitter grows near the candle or burning paper; a few ember sparks when one gets very close.
   - **Swat reaction:** on swat the moth spins (720°/s), falls with gravity, and bursts into paper flakes (see 5.1).
-- **Drafts:** `Draft` has a repeating timer: telegraph (1 s) → gust (1.5 s) → calm. During a gust, if the player is not in a shelter tile, force `sizeIndex = 0` and block growing.
+- **Drafts:** `systems/DraftWind.js` holds ONE wind for the whole act (several `^` are several places the same gust comes from) on a repeating timer: calm → telegraph (1 s) → gust (1.5 s). During a gust, if the player is not in a shelter, force `sizeIndex = 0`, block growing, set `player.windPush`, and raise `candle.windFactor`.
+  - **The push must be a target, not a nudge.** `Player.moveHorizontally` lerps the velocity towards `direction * speed` every frame, so velocity shoved in from outside is wiped out before it carries the puppet anywhere. `windPush` is ADDED to that target instead.
+  - `fx/WindEffects.js` draws it: streak and scrap emitters, the windows at each `^`, and blades over the windmill painted on the backdrop (a baked image cannot spin, so they sit on top of it — `CONFIG.draft.windmill.x/y` must move if that art changes).
+  - `ui/GustWarning.js` is the HUD half: the countdown bar and the "GUST!" card.
 - **All tunable numbers live in `config.js`** so the team can tweak feel without hunting through code.
 - **Restart** rebuilds the scene with `this.scene.restart({ act })`.
 - Use `localStorage` only for the single saved record in 4.9 (highest act, tutorialDone, tipsSeen), wrapped in try/catch and validated.
@@ -603,42 +619,42 @@ Each milestone ends with: run the game, check every item, commit and push.
 - [x] Corner correction, one-way platforms `=`, page scroll capture (4.10)
 
 ### M2 — The candle (by Sat 13:00)
-- [ ] Tiny / Normal / Huge with Q/E, 1/2/3 and mouse wheel; smooth tween; feet stay anchored
-- [ ] Growing is refused when there is no room (shake + sound placeholder)
-- [ ] Wax drains with size multiplier; HUD candle shows wax; wax drops work
-- [ ] Wax 0 → curtain → restart; exit door → next act
-- [ ] **Checkpoint: Act 1 is fun to play. If not, improve feel before going on.**
+- [x] Tiny / Normal / Huge with Q/E, 1/2/3 and mouse wheel; smooth tween; feet stay anchored
+- [x] Growing is refused when there is no room (shake + sound placeholder)
+- [x] Wax drains with size multiplier; HUD candle shows wax; wax drops work
+- [x] Wax 0 → curtain → restart; exit door → next act
+- [x] **Checkpoint: Act 1 is fun to play. If not, improve feel before going on.**
 - [ ] **Burn rate visible (4.3.1):** HUD flame, drips and `×` tag react to size *(added 2026-10-17: synergy marks)*
 - [ ] Hide-HUD key (H) and dev act-skip keys for trailer recording *(moved up from M5 2026-10-17: needed to record takes quickly)*
 
 ### M3 — Puzzles (by Sat 17:00)
-- [ ] Crates pushable only when Huge; switches and gates work
-- [ ] Tutorial hint symbol `?` works with the PaperPanel animation (5.1); hints added to Acts 1 and 2
+- [x] Crates pushable only when Huge; switches and gates work
+- [x] Tutorial hint symbol `?` works with the PaperPanel animation (5.1); hints added to Acts 1 and 2
 - [ ] ~~Gamepad support~~ **CUT 2026-10-17**
-- [ ] Act 2 complete and solvable
+- [x] Act 2 complete and solvable
 
 ### M4 — Danger (by Sat 20:30; moths optional until 22:00)
-- [ ] Burning paper spreads and leaves holes; falling through a hole restarts *(never cut: the Fire theme)*
-- [ ] Hit feedback (flash, shake, knockback, short invulnerability); hit-stop and checkpoint lanterns `k` only if Act 5 needs them
-- [ ] Act 5 "The Last Act" (fire finale) complete and solvable
-- [ ] **OPTIONAL:** Moths (swat when Huge) + Act 3, only if Act 5 is playable by Sat 19:30 *(good synergy footage: swatting means going Huge, which burns wax)*
-- [ ] ~~Drafts with telegraph and shelters; Act 4~~ **CUT 2026-10-17**
+- [x] Burning paper spreads and leaves holes; falling through a hole restarts *(never cut: the Fire theme)*
+- [x] Hit feedback (flash, shake, knockback, short invulnerability); hit-stop and checkpoint lanterns `k` only if Act 5 needs them *(Act 5 runs 6-30 s, so neither was needed)*
+- [x] Act 5 "The Last Act" (fire finale) complete and solvable
+- [x] **OPTIONAL:** Moths (swat when Huge) + Act 3, only if Act 5 is playable by Sat 19:30 *(good synergy footage: swatting means going Huge, which burns wax)* **BUILT 2026-10-17**
+- [x] ~~Drafts with telegraph and shelters; Act 4~~ ~~**CUT 2026-10-17**~~ — **UN-CUT and BUILT 2026-10-17** at the team's call: all five acts ship
 
 ### M5 — Show polish (by Sat 23:30, trimmed to what the trailer and the top-5 judges see)
-- [ ] Act cards with curtain (+ one story line) between acts; ending with candle burning out, the bow and "Fin." (replaces the M0 placeholder `EndScene`)
-- [ ] Transitions and juice from 5.1 that show on camera: curtain flick, size-change light "breath", afterimage, shake, particles. ~~Reduce motion & flicker~~ **CUT**
-- [ ] All sounds and music in, volumes tuned, `CREDITS.md` filled
-- [ ] `vercel.json` security headers added (`SECURITY.md` rule 10)
+- [x] Act cards with curtain (+ one story line) between acts; ending with candle burning out, the bow and "Fin." (replaces the M0 placeholder `EndScene`)
+- [x] Transitions and juice from 5.1 that show on camera: curtain flick, size-change light "breath", afterimage, shake, particles. ~~Reduce motion & flicker~~ **CUT**
+- [x] All sounds and music in, volumes tuned, `CREDITS.md` filled — **music is ON**; 7 real files plus browser-made stand-ins for 18 more (`src/systems/SynthSounds.js`), so nothing is silent. Only `music_finale` has no sound at all. Every boot lists what is still missing
+- [x] `vercel.json` security headers added (`SECURITY.md` rule 10)
 - [ ] Deployed on Vercel and tested from the live link with no console errors *(optional for marks, but gives the top-5 judges a one-click build)*
-- [ ] ~~Act select, results card, credits screen~~ **CUT 2026-10-17** (credits live in `CREDITS.md`, README and the trailer)
-- [ ] ~~Continue / New show, Settings, Controls page, device-aware prompts, gamepad-disconnect pause, ending stats, page polish, version label~~ **CUT 2026-10-17**; a favicon and page `<title>` only if 5 minutes are spare
-- [ ] ~~First-time tutorial (4.9)~~ **CUT 2026-10-17**: the `?` hints in Acts 1–2 teach the controls instead
+- [x] ~~Act select, results card, credits screen~~ ~~**CUT 2026-10-17**~~ — **UN-CUT and BUILT 2026-10-17**: act select (unlocked acts only), the results card between acts, and a credits page on the menu
+- [x] **Continue / New show, Settings (volumes + reduce motion), Controls page (HOW TO PLAY), gamepad menu input** — built 2026-10-17. Still cut: device-aware prompts, gamepad-disconnect pause, ending stats, version label
+- [x] ~~First-time tutorial (4.9)~~ **STILL CUT**: the `?` hints teach the controls in play, and HOW TO PLAY on the menu lists them
 
 ### M6 — Freeze (Sat 23:30, hard)
 - [ ] Feature freeze; bug fixes only. **No new features after 23:30**, even small ones
-- [ ] README complete (how to play, controls, theme table, credits)
+- [x] README complete (how to play, controls, theme table, credits)
 - [ ] `SECURITY.md` pre-deploy checklist done
-- [ ] Full playthrough of every shipped act, title → "Fin.", in Chrome and Edge (or Firefox) with the keyboard, on the build that the judges will get
+- [ ] Full playthrough of every shipped act, title → the last words, in Chrome and Edge (or Firefox) with the keyboard, on the build that the judges will get
 
 ## 10. Working as a team (shifts)
 

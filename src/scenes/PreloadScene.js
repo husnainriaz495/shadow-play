@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { fitCamera } from '../core/camera.js';
 import { PRELOAD_LIST } from '../assets.js';
 import { CONFIG } from '../config.js';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../core/constants.js';
+import { SCENES } from '../core/constants.js';
+import { LoadingCandle } from '../ui/LoadingCandle.js';
+import { AudioManager } from '../systems/AudioManager.js';
 
 /**
  * Keys are loaded under this prefix first, then swapped onto the real key.
@@ -28,7 +30,8 @@ export class PreloadScene extends Phaser.Scene {
     preload() {
         fitCamera(this);
 
-        this.showLoadingBar();
+        this.candle = new LoadingCandle(this);
+        this.load.on('progress', (progress) => this.candle.setProgress(progress));
 
         // One warning per bad file, instead of an exception that kills the game.
         this.load.on('loaderror', (file) => {
@@ -53,12 +56,27 @@ export class PreloadScene extends Phaser.Scene {
         });
 
         PRELOAD_LIST.audio.forEach((sound) => this.load.audio(sound.key, sound.path));
+
+        // Backdrops have no placeholder (an act simply plays on plain paper
+        // without one), so they load straight onto their own key.
+        PRELOAD_LIST.backdrops.forEach((backdrop) => this.load.image(backdrop.key, backdrop.path));
     }
 
     create() {
         this.useRealArtWhereItLoaded();
+        AudioManager.reportMissingFiles();
 
-        this.scene.start(SCENES.TITLE);
+        // The files are usually cached and arrive in a few milliseconds,
+        // which makes the loading screen FLASH -- a frame of candle and
+        // then gone, which reads as a glitch. It is held for
+        // CONFIG.loading.minMs so it looks like a deliberate curtain-up
+        // rather than something going wrong.
+        this.time.delayedCall(CONFIG.loading.minMs,
+            () => this.scene.start(SCENES.TITLE, { curtainClosed: true }));
+    }
+
+    update(time) {
+        this.candle.update(time);
     }
 
     /**
@@ -86,33 +104,12 @@ export class PreloadScene extends Phaser.Scene {
             // Not there means the load failed; the placeholder stays put.
             if (!this.textures.exists(pendingKey)) return;
 
-            this.textures.remove(image.key);
+            // Not every key has a placeholder to replace (the logo has
+            // none -- there is nothing sensible to draw in its place), and
+            // removing a key that was never there logs a warning.
+            if (this.textures.exists(image.key)) this.textures.remove(image.key);
             this.textures.renameTexture(pendingKey, image.key);
         });
     }
 
-    /**
-     * A simple progress bar. It is drawn with Graphics rather than an image
-     * because at this point no image is guaranteed to have loaded.
-     */
-    showLoadingBar() {
-        const barWidth = 420;
-        const x = (GAME_WIDTH - barWidth) / 2;
-        const y = GAME_HEIGHT / 2;
-
-        this.add.text(GAME_WIDTH / 2, y - 48, 'Lighting the candle...', CONFIG.text.prompt)
-            .setOrigin(0.5);
-
-        const outline = this.add.graphics();
-        outline.lineStyle(2, CONFIG.palette.title, 0.8);
-        outline.strokeRect(x, y, barWidth, 18);
-
-        // One Graphics object, cleared and redrawn -- no new objects per frame.
-        const fill = this.add.graphics();
-        this.load.on('progress', (progress) => {
-            fill.clear();
-            fill.fillStyle(CONFIG.palette.accent, 1);
-            fill.fillRect(x + 3, y + 3, (barWidth - 6) * progress, 12);
-        });
-    }
 }

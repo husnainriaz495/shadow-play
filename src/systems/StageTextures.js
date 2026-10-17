@@ -1,11 +1,11 @@
 import { CONFIG } from '../config.js';
-import { GAME_WIDTH, GAME_HEIGHT, TILE_SIZE } from '../core/constants.js';
+import { GAME_WIDTH, GAME_HEIGHT } from '../core/constants.js';
 import { toCssColor } from '../core/helpers.js';
 
 /**
  * Draws the textures for the *stage itself*: the candle's light, the
- * vignette and grain, a soft glow sprite, the tileset used by every level,
- * and the little sprites used for embers and the HUD flame.
+ * vignette and grain, a soft glow sprite, and the little sprites used for
+ * embers, the HUD flame and its drips. The level tiles are TileTextures.js.
  *
  * WHY these are never files (ASSETS.md): a gradient and some grain are just
  * maths, and generating them means zero download and colours that come
@@ -22,9 +22,11 @@ export class StageTextures {
         this.glow();
         this.vignette();
         this.softGlow();
-        this.tileset();
         this.ember();
+        this.dust();
+        this.windStreak();
         this.flame();
+        this.waxDrip();
     }
 
     /**
@@ -112,50 +114,20 @@ export class StageTextures {
     }
 
     /**
-     * The tileset: one strip of 40x40 tiles in the order of TILE_INDEX
-     * (wall, paper, burning, platform). Levels are built from this single
-     * texture so the fire grid can swap a tile's index with one call.
+     * One run of melted wax for the HUD candle: a thin trickle with a round
+     * bulb at the bottom, the shape real drips make. Drawn once; the drips
+     * are a pool of images using it (ui/WaxDrips.js).
      */
-    tileset() {
+    waxDrip() {
+        const { dripWidth, dripHeight } = CONFIG.hud;
+        const bulb = dripWidth / 2;
         const g = this.scene.make.graphics({ add: false });
-        const t = TILE_SIZE;
-        const { shadow, paperStops, flameOuter, flameCore } = CONFIG.palette;
 
-        // 0 WALL -- solid painted scenery.
-        g.fillStyle(shadow, 1);
-        g.fillRect(0, 0, t, t);
+        g.fillStyle(CONFIG.palette.wax, 1);
+        g.fillRoundedRect(bulb - bulb * 0.55, 0, bulb * 1.1, dripHeight - bulb, bulb * 0.5);
+        g.fillCircle(bulb, dripHeight - bulb, bulb);
 
-        // 1 PAPER -- solid, but you can see it is thin: a hatched square.
-        // The hatch is two sets of diagonals that each stay INSIDE this
-        // 40 px cell; Graphics has no clipping, so a long diagonal would
-        // scribble over the neighbouring tiles in the strip.
-        g.fillStyle(shadow, 1);
-        g.fillRect(t, 0, t, t);
-        g.lineStyle(2, paperStops[1], 0.5);
-        const inset = 2;
-        for (let o = 8; o < t - inset; o += 10) {
-            g.lineBetween(t + inset, o, t + o, inset);
-            g.lineBetween(t + o, t - inset, t + t - inset, o);
-        }
-
-        // 2 BURNING -- a charred tile with a hot, ragged edge.
-        g.fillStyle(shadow, 1);
-        g.fillRect(t * 2, 0, t, t);
-        g.fillStyle(flameOuter, 1);
-        g.fillRect(t * 2, 0, t, 7);
-        g.fillStyle(flameCore, 1);
-        for (let i = 0; i < t; i += 8) {
-            g.fillRect(t * 2 + i, 5, 5, 6 + (i % 3) * 4);
-        }
-
-        // 3 PLATFORM -- a thin one-way shelf you can jump up through. Drawn
-        // only across the top of its cell so it reads as a ledge.
-        g.fillStyle(shadow, 1);
-        g.fillRect(t * 3, 0, t, 9);
-        g.fillStyle(paperStops[0], 0.35);
-        g.fillRect(t * 3 + 2, 2, t - 4, 2);
-
-        g.generateTexture('tileset', t * 4, t);
+        g.generateTexture('wax_drip', dripWidth, dripHeight);
         g.destroy();
     }
 
@@ -167,6 +139,44 @@ export class StageTextures {
         g.fillStyle(CONFIG.palette.flameCore, 1);
         g.fillCircle(5, 5, 2.5);
         g.generateTexture('ember', 10, 10);
+        g.destroy();
+    }
+
+    /**
+     * A soft pale mote for the dust kicked up by a landing (fx/DustPuff.js).
+     * Muted, never bright: dust catches the candlelight, it does not glow
+     * (PALETTE.md -- `textMuted` is the palette's quiet pale tone).
+     */
+    dust() {
+        const g = this.scene.make.graphics({ add: false });
+        g.fillStyle(CONFIG.palette.textMuted, 0.5);
+        g.fillCircle(4, 4, 4);
+        g.fillStyle(CONFIG.palette.textMuted, 0.8);
+        g.fillCircle(4, 4, 2);
+        g.generateTexture('dust', 8, 8);
+        g.destroy();
+    }
+
+    /**
+     * A wind streak: a thin horizontal smear, brightest in the middle and
+     * fading at both ends, so a line of them reads as moving air rather
+     * than as scratches on the screen (systems/DraftWind.js).
+     */
+    windStreak() {
+        const { streakWidth, streakHeight } = CONFIG.draft;
+        const g = this.scene.make.graphics({ add: false });
+        const middle = streakHeight / 2;
+
+        // Drawn as a run of short bars whose alpha rises then falls.
+        for (let x = 0; x < streakWidth; x++) {
+            const along = x / (streakWidth - 1);
+            const fade = Math.sin(along * Math.PI);
+
+            g.fillStyle(CONFIG.palette.title, fade);
+            g.fillRect(x, middle - streakHeight / 2, 1, streakHeight);
+        }
+
+        g.generateTexture('wind_streak', streakWidth, streakHeight);
         g.destroy();
     }
 

@@ -4,20 +4,73 @@
 your shadow grows huge; move it away and you shrink. The candle is your power
 and your clock.
 
-Made in ~48 hours for the **NASCON vibe-coding game jam** by a team of two.
+Created for the **NASCON Vibe Coding Game Dev Competition** by Ayesha Muzammil,
+Husnain Riaz, Haziq Haroon and Aiza Kashif.
 
-> **Status: milestone M0 (setup) complete.** The project runs and the stage is
-> lit, but there is no gameplay yet — the player, the level and the wax timer
-> arrive in M1 and M2. See `NOTES.md` for exactly where things stand.
+> *"The fire gives you shape. Time takes it away."*
 
 ---
 
-## How to run it
+## How to play
 
-You need [Node.js](https://nodejs.org) (version 20 or newer).
+Press **Space** at the title, then get to the glowing door at the end of each
+act before the wax runs out.
+
+| Action | Keys |
+| --- | --- |
+| Move | `A` / `D` or `←` / `→` |
+| Jump | `W`, `↑` or `Space` |
+| Candle closer — **grow** | `E` or mouse wheel up |
+| Candle farther — **shrink** | `Q` or mouse wheel down |
+| Set size directly | `1` Tiny, `2` Normal, `3` Huge |
+| Restart the act | `R` |
+| Pause | `Esc` or `P` |
+| Mute | `M` |
+| Fullscreen | `F` |
+| Hide the HUD (for recording) | `H` |
+| Developer view — FPS, hitboxes, joints | `F1` |
+
+Keyboard and mouse only; there is no gamepad support.
+
+**The one rule worth knowing:** being **Huge** burns wax twice as fast as
+Normal, and **Tiny** burns it slowest. Every puzzle is the same question —
+*is being big worth the seconds it costs you?*
+
+The bottom-left panel is the wax you have left; it turns red and pulses under
+25%. The dots bottom-right are your size. Hints unfold on their own when you
+walk near them, so nothing needs to be looked up.
+
+## The three acts
+
+| | |
+| --- | --- |
+| **Act I — The Lighting of the Candle** | Walking, jumping, and your first squeeze: only **Tiny** fits under the pillar. |
+| **Act II — The Giant** | **Huge** to climb and to push the crate onto the switch, **Tiny** to get through the gate's doorway. |
+| **Finale — The Last Act** | The paper stage catches fire behind you. Run right, changing size as you go, while the floor burns into holes. |
+
+Then the puppet takes its bow, the candle burns out, and the curtain falls.
+
+## How the three themes drive it
+
+The jam's themes are **Fire**, **Shadow** and **Time**. All three are in the
+core mechanic, not the decoration — take any one away and the game stops
+working.
+
+| Theme | How it drives the game |
+| --- | --- |
+| **Shadow** | You *are* a shadow on a paper screen. Your size depends entirely on the light, and so does every puzzle. |
+| **Fire** | The candle is the tool: how close you hold it decides whether you are Tiny, Normal or Huge. Fire is also the hazard — in the finale it eats the paper floor you are standing on. |
+| **Time** | The candle melts while you play. Wax *is* the timer, and holding it close to be Huge spends it twice as fast. At zero the puppet goes limp and the curtain closes. |
+
+They meet in one decision: **the thing that gives you power is the thing that
+runs out.**
+
+## Running it yourself
+
+You need [Node.js](https://nodejs.org) 20 or newer.
 
 ```bash
-npm install     # first time only (use `npm ci` on a fresh clone)
+npm ci          # exact versions from package-lock.json
 npm run dev     # then open http://localhost:8080
 ```
 
@@ -28,56 +81,59 @@ npm run dev     # then open http://localhost:8080
 | `npm run preview` | Serve the production build locally |
 | `npm audit` | Check dependencies for known vulnerabilities |
 
-## Controls
+The checks that run before every commit are in
+[`tools/headless/`](tools/headless/) — including a scripted playthrough of
+the whole game, title to "Fin.". They need no extra packages; see the
+README in that folder.
 
-Full list in `PRD.md` section 4.6. Not all of these are implemented yet —
-the ones that work today are marked **✔**.
+If port 8080 is taken (a Windows service can hold it), run
+`npx vite --config vite/config.dev.mjs --port 5174` instead.
 
-| Action | Keys |
-| --- | --- |
-| Move | `A` / `D` or `←` / `→` |
-| Jump | `W`, `↑` or `Space` |
-| Candle closer (grow) | `E` or mouse wheel up |
-| Candle farther (shrink) | `Q` or mouse wheel down |
-| Set size directly | `1` Tiny, `2` Normal, `3` Huge |
-| Restart act | `R` **✔** |
-| Pause | `Esc` or `P` |
-| Mute | `M` |
-| Fullscreen | `F` |
-| Hide HUD (for recording) | `H` |
-| Developer view (FPS + hitboxes) | `F1` **✔** |
+Deploying is set up for Vercel: `vercel.json` carries the build settings and
+the security headers from `SECURITY.md`, so connecting the repo is enough.
 
-A gamepad is also supported: left stick or D-pad to move, `A` to jump,
-`LB` / `RB` to move the candle, `Start` to pause.
+## How it is built
 
-## The three themes
+Plain JavaScript modules, **Phaser 3.90** and **Vite** — exactly two
+dependencies, no framework and no third-party scripts on the page. Everything
+you see is drawn in code or loaded from `public/assets/`; the game still runs
+with no art files at all, falling back to shapes drawn from the palette.
 
-The jam's themes are **Fire**, **Shadow** and **Time**. All three are in the
-core mechanic, not the decoration — take any one away and the game stops
-working.
+```
+src/
+  core/      constants, the event bus, scene-safe listeners, the camera fit
+  scenes/    boot, preload, title, game, UI, pause, act card, ending
+  objects/   things on the stage: player, puppet rig, door, crate, hint...
+  systems/   rules: levels, sizes, wax, fire, input, act flow, audio
+  ui/        things that only draw: HUD, panels, curtain, size dots
+  fx/        reusable animation and particle pools
+  levels/    the acts, as pure data (map strings + hints)
+  config.js  every tunable number in the game, in one object
+```
 
-| Theme | How it drives the game |
-| --- | --- |
-| **Shadow** | You *are* a shadow on a paper screen. Your size depends entirely on the light. |
-| **Fire** | The candle is your tool: how close you hold it decides whether you are Tiny, Normal or Huge. Fire also burns through the paper stage and destroys the floor you stand on. |
-| **Time** | The candle melts as you play. Wax is the timer — and being Huge melts it twice as fast. When the wax runs out, the curtain falls. |
+Three conventions the code sticks to, in case you read it:
 
-> *"The fire gives you shape. Time takes it away."*
+- **No magic numbers or colours.** Every tunable value is in `src/config.js`
+  and every colour comes from `PALETTE.md` through `CONFIG.palette`.
+- **Rules and drawing are separate.** `systems/` decides, `objects/` and `ui/`
+  draw. A level file is pure data with no logic in it.
+- **Events, not references.** Things announce what happened on an `EventBus`
+  rather than calling each other, so a hazard knows nothing about the HUD.
 
-So every puzzle is really one question: **is being big worth the seconds it
-costs you?**
+All game code is written by the team with AI assistance. None of it is copied
+from another game.
 
 ## Credits
 
-Every asset and library is listed in [CREDITS.md](CREDITS.md). All game code
-is written by the team with AI help; none of it is copied from another game.
+Every asset, font and library is listed in [CREDITS.md](CREDITS.md).
 
 ## Documentation
 
 | File | What it is the single source of truth for |
 | --- | --- |
 | [PRD.md](PRD.md) | What the game is: gameplay, tech design, milestones |
+| [NOTES.md](NOTES.md) | Where the project actually is — **read this first** |
 | [CODE_RULES.md](CODE_RULES.md) | How the code is organised: folders, patterns, no magic numbers |
+| [PALETTE.md](PALETTE.md) | Every colour in the game |
 | [ASSETS.md](ASSETS.md) | Every image, sound, music and font file, with its key and path |
 | [SECURITY.md](SECURITY.md) | Keeping the repo and the deployed game safe |
-| [NOTES.md](NOTES.md) | Shift handover notes — read this first |

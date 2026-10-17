@@ -46,7 +46,7 @@ export class LevelLoader {
 
         const rows = this.normalise(act?.map ?? []);
         const { layer, map } = this.buildTilemap(rows);
-        const { playerStart, spawns } = this.findObjects(rows);
+        const { playerStart, spawns } = this.findObjects(rows, act?.hints ?? []);
 
         return { layer, map, playerStart, spawns, problems };
     }
@@ -104,8 +104,10 @@ export class LevelLoader {
      *
      * Reading order (left to right, top to bottom) matters: it is the order
      * the act's `hints` list is matched against its `?` markers.
+     *
+     * @param {string[]} hints the act's hint texts, one per `?`
      */
-    findObjects(rows) {
+    findObjects(rows, hints) {
         // Feet on the FLOOR of the start tile, not floating at its centre.
         const feetOf = (spot) => ({ x: spot.x, y: spot.y + TILE_SIZE / 2 });
         let playerStart = feetOf(tileToWorld(1, GRID_ROWS - 2));
@@ -129,7 +131,7 @@ export class LevelLoader {
                     y: at.y,
                     col: colIndex,
                     row: rowIndex,
-                    hintIndex: symbol === SYMBOLS.HINT ? hintIndex++ : undefined
+                    text: symbol === SYMBOLS.HINT ? hints[hintIndex++] ?? '' : undefined
                 });
             });
         });
@@ -155,5 +157,6 @@ const SPAWNABLE = new Set([
     SYMBOLS.DRAFT,
     SYMBOLS.SHELTER,
     SYMBOLS.CHECKPOINT,
+    SYMBOLS.LANTERN,
     SYMBOLS.HINT
 ]);

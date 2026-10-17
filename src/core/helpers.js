@@ -75,3 +75,26 @@ export function mixColors(from, to, amount) {
 
     return channel(16) | channel(8) | channel(0);
 }
+
+/**
+ * 1 -> "I", 4 -> "IV". The acts are numbered the way a theatre programme
+ * numbers them, so anything that shows an act number ("CONTINUE - ACT III",
+ * "ACT III OF V") reads the same as the act titles themselves.
+ *
+ * Only ever used for small numbers, so the table stops where the acts do.
+ */
+const NUMERALS = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+
+export function romanNumeral(value) {
+    let left = Math.max(0, Math.floor(value));
+    let out = '';
+
+    NUMERALS.forEach(([size, letters]) => {
+        while (left >= size) {
+            out += letters;
+            left -= size;
+        }
+    });
+
+    return out || '0';
+}

@@ -70,8 +70,8 @@ After deploying, open the live game, press F12 → Console, and play through Act
 
 ### Accounts
 
-13. Turn on **two-factor authentication** for both teammates' GitHub and Vercel accounts.
-14. Only the two teammates are collaborators on the repo. Don't give access to anyone else.
+13. Turn on **two-factor authentication** for every teammate's GitHub and Vercel accounts.
+14. Only the four teammates are collaborators on the repo. Don't give access to anyone else.
 15. Vercel deploys only from the `main` branch of our repo. Don't connect other repos or give the Vercel project to anyone else.
 
 ### Jam rules (also "security" for your score)

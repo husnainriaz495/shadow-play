@@ -7,6 +7,7 @@ import { EventBus } from '../core/EventBus.js';
  *
  * Wax melts every second at CONFIG.wax.baseDrain times the current size's
  * waxMultiplier, so being Huge literally costs time. Wax drops add to it.
+ * Later acts start with less and melt it faster (CONFIG.acts).
  *
  * This system only does the arithmetic and ANNOUNCES the result
  * (CODE_RULES 6.2): the HUD candle listens for WAX_CHANGED, and the curtain
@@ -20,26 +21,67 @@ export class Candle {
      * @param {import('../core/Listeners.js').Listeners} listeners the scene's
      * @param {import('../objects/Player.js').Player} player whose size sets the drain
      * @param {import('../objects/PaperScreen.js').PaperScreen} paperScreen the light to dim
+     * @param {number} actNumber which act's difficulty to use (CONFIG.acts)
      */
-    constructor(listeners, player, paperScreen) {
+    constructor(listeners, player, paperScreen, actNumber = 1) {
+        const tuning = Candle.tuningFor(actNumber);
+
         this.player = player;
         this.paperScreen = paperScreen;
 
-        this.wax = CONFIG.wax.start;
+        /** Later acts start with less wax and melt it faster (CONFIG.acts). */
+        this.drainScale = tuning.drainScale;
+
+        /**
+         * Extra drain while something is fighting the flame -- a draft
+         * blowing on it out in the open (systems/DraftWind.js). 1 means
+         * nothing is.
+         */
+        this.windFactor = 1;
+        this.wax = tuning.startWax;
         this.isLow = false;
         this.isOut = false;
 
+        /** What last took wax off the candle, and when. */
+        this.lastHurtSource = null;
+        this.hurtAt = -Infinity;
+
         listeners.on(EVENTS.WAX_PICKED_UP, ({ amount }) => this.add(amount), this);
+
+        // A hazard's cost comes straight out of the wax (PRD 4.4). The
+        // candle also remembers WHAT took it, because it is the only
+        // thing that can honestly say why the wax ran out -- it is the
+        // one subtracting it.
+        listeners.on(EVENTS.PLAYER_HURT, ({ amount, source }) => {
+            this.lastHurtSource = source;
+            this.hurtAt = this.player.scene.time.now;
+            this.add(-amount);
+        }, this);
+    }
+
+    /**
+     * This act's difficulty, falling back to the last act's for anything
+     * past the end of the table (a dev key, a level added without tuning).
+     */
+    static tuningFor(actNumber) {
+        const table = CONFIG.acts;
+
+        return table[actNumber - 1] ?? table[table.length - 1];
     }
 
     /** Melt the wax for this frame. Called by GameScene.update. */
     update(delta) {
         if (this.isOut) return;
 
-        const perSecond = CONFIG.wax.baseDrain * this.player.state.waxMultiplier;
+        const perSecond = CONFIG.wax.baseDrain * this.drainScale * this.windFactor * this.rate;
 
         this.wax -= perSecond * (delta / 1000);
         this.announce();
+    }
+
+    /** How many times faster than Normal the wax is melting right now. */
+    get rate() {
+        return this.player.state.waxMultiplier;
     }
 
     /**
@@ -58,7 +100,9 @@ export class Candle {
         const { max, lowThreshold } = CONFIG.wax;
 
         this.wax = Math.max(0, this.wax);
-        EventBus.emit(EVENTS.WAX_CHANGED, { wax: this.wax, max });
+        // `rate` lets the HUD SHOW the burn speed (PRD 4.3.1) without
+        // knowing anything about sizes.
+        EventBus.emit(EVENTS.WAX_CHANGED, { wax: this.wax, max, rate: this.rate });
 
         // Full brightness until the warning line, then fading to dark.
         this.paperScreen.setLightLevel(this.wax / lowThreshold);
@@ -70,7 +114,12 @@ export class Candle {
 
         if (this.wax <= 0) {
             this.isOut = true;
-            EventBus.emit(EVENTS.WAX_OUT);
+
+            // A hit moments ago is the real cause; otherwise it simply
+            // burnt down. Whoever shows the game-over card says so.
+            const recent = this.player.scene.time.now - this.hurtAt < CONFIG.death.blameMs;
+
+            EventBus.emit(EVENTS.WAX_OUT, { cause: recent ? this.lastHurtSource : null });
         }
     }
 }

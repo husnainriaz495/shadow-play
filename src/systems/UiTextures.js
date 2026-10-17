@@ -22,6 +22,7 @@ export class UiTextures {
     generate() {
         this.pointerHand();
         this.gamepadIcons();
+        this.windIcon();
     }
 
     canvas() {
@@ -31,6 +32,32 @@ export class UiTextures {
     bake(graphics, key, width, height) {
         graphics.generateTexture(key, width, height);
         graphics.destroy();
+    }
+
+    /**
+     * The wind icon on the "GUST!" warning: three curved streaks, the way
+     * weather is drawn everywhere. Code-drawn, because a 24 px icon is
+     * not worth an asset file.
+     */
+    windIcon() {
+        const { size, stroke } = CONFIG.draft.icon;
+        const g = this.canvas();
+
+        g.lineStyle(stroke, CONFIG.palette.title, 1);
+
+        [0.28, 0.5, 0.72].forEach((row, index) => {
+            const y = size * row;
+            const length = size * (index === 1 ? 0.92 : 0.66);
+
+            g.beginPath();
+            g.moveTo(size * 0.04, y);
+            g.lineTo(size * 0.04 + length, y);
+            // A little hook on the end, so it reads as curling air.
+            g.lineTo(size * 0.04 + length - stroke * 2, y - stroke * 2);
+            g.strokePath();
+        });
+
+        this.bake(g, 'wind_icon', size, size);
     }
 
     /**

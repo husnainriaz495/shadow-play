@@ -27,3 +27,9 @@ dist-ssr/
 # Windows
 Thumbs.db
 desktop.ini
+
+# The headless test harness in tools/headless makes this as it runs.
+.chrome-profile/
+
+# The harness writes its screenshots here (tools/headless/README.md).
+shots/

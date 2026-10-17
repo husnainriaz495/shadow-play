@@ -1,6 +1,6 @@
 # Shadow Play — instructions for Claude Code
 
-This repo is a 48-hour game-jam game built by two beginners who work in shifts.
+This repo is a 48-hour game-jam game built by a team of four beginners who work in shifts.
 
 - **`PRD.md`** is the spec for the game: gameplay, tech design, milestones. Build milestone by milestone, in order, and tick the boxes in section 9 when an item is done and tested.
 - **`ASSETS.md`** is the only list of image, sound, music and font files, with their keys and paths. Code refers to assets by key via `src/assets.js`, never by path. The game must run with no asset files (placeholders drawn in code).

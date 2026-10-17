@@ -30,6 +30,7 @@ export class LevelValidator {
         LevelValidator.checkSymbols(act.map, where, problems);
         LevelValidator.checkSingletons(act.map, where, problems);
         LevelValidator.checkHints(act, where, problems);
+        LevelValidator.checkSwitches(act.map, where, problems);
 
         return problems;
     }
@@ -88,6 +89,18 @@ export class LevelValidator {
                 problems.push(`${where}: found ${count} "${symbol}" (${name}), but there must be exactly 1.`);
             }
         });
+    }
+
+    /** A switch with no gate to open is a puzzle with no answer. */
+    static checkSwitches(map, where, problems) {
+        const count = (symbol) => map.reduce(
+            (total, row) => total + (typeof row === 'string' ? [...row].filter((c) => c === symbol).length : 0),
+            0
+        );
+
+        if (count(SYMBOLS.SWITCH) > 0 && count(SYMBOLS.GATE) === 0) {
+            problems.push(`${where}: has a switch "${SYMBOLS.SWITCH}" but no gate "${SYMBOLS.GATE}" for it to open.`);
+        }
     }
 
     /** Every `?` on the map needs a line of text in the act's hints list. */

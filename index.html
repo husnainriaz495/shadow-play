@@ -6,13 +6,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <title>Shadow Play</title>
+    <meta name="description" content="A shadow-puppet show lit by one melting candle. Move the candle closer and your shadow grows huge, but the wax burns faster. The fire gives you shape. Time takes it away." />
+    <meta name="theme-color" content="#061014" />
+
+    <!-- The tab icon: a lit candle, drawn from the palette (ASSETS.md favicon). -->
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
 
     <!--
-        The tab icon. ASSETS.md asks for a lit-candle icon at public/favicon.png;
-        until someone draws one this is the placeholder that shipped with the
-        Phaser template.
+        Link preview (PRD 4.10 "page polish"): what shows when the game's link
+        is shared. og-image.png is a real gameplay frame with the title.
+        Some sites need the FULL deployed URL in og:image; once the Vercel
+        address is known, put it in front of /og-image.png.
     -->
-    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Shadow Play" />
+    <meta property="og:description" content="A shadow-puppet show lit by one melting candle. The fire gives you shape. Time takes it away." />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="stylesheet" href="/style.css">
 
@@ -23,8 +35,7 @@
         point below. It has no inline code, which is what keeps it legal under
         the Content-Security-Policy in SECURITY.md rule 10 (script-src 'self').
 
-        The meta description, og:image link preview and the CSS loading screen
-        are milestone M5 (PRD 4.10, "page polish").
+        The CSS loading screen from PRD 4.10 is still to do.
     -->
 </head>
 
