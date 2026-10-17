@@ -1,0 +1,20 @@
+# Keep line endings identical for both teammates.
+#
+# WHY this matters for us: we work in shifts on Windows and hand the repo
+# over by pushing and pulling. Without this, one person's editor can rewrite
+# every line ending in a file, and the next `git diff` shows the WHOLE file
+# as changed -- which hides the three lines that actually changed and makes
+# handovers confusing (PRD.md section 10).
+#
+# `text=auto eol=lf` stores everything with LF in the repo while letting
+# Windows check it out however it likes.
+
+* text=auto eol=lf
+
+# Binary files must never be line-ending converted or they break.
+*.png binary
+*.jpg binary
+*.mp3 binary
+*.wav binary
+*.woff2 binary
+*.ico binary
