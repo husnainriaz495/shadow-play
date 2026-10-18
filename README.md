@@ -92,6 +92,58 @@ If port 8080 is taken (a Windows service can hold it), run
 Deploying is set up for Vercel: `vercel.json` carries the build settings and
 the security headers from `SECURITY.md`, so connecting the repo is enough.
 
+## Play the game: executables
+
+Shadow Play also runs as a desktop app, with no browser and no Node.js
+needed to play. The game inside it is the same production build as the web
+version; `desktop/` only wraps it in an [Electron](https://www.electronjs.org)
+window.
+
+| Download | For | Size | How to start it |
+| --- | --- | --- | --- |
+| `ShadowPlay-win-x64.zip` | Windows 10/11, 64-bit | ~159 MB | Unzip, open the `Shadow Play` folder, run **`Shadow Play.exe`** |
+| `ShadowPlay-mac-arm64.zip` | Macs with Apple Silicon (M1 and newer) | ~132 MB | Unzip, then right-click **`Shadow Play.app`** → **Open** → **Open** |
+| `ShadowPlay-mac-x64.zip` | Intel Macs | ~134 MB | Same as above |
+
+The executables are **not in the git repo**: each one is bigger than
+GitHub's 100 MB per-file limit. They are shared as release downloads
+instead, or you can build them yourself (below).
+
+**Windows:** the exe is not code-signed, so SmartScreen may say "Windows
+protected your PC". Click **More info → Run anyway**. Keep the whole folder
+together; the exe needs the files next to it.
+
+**macOS:** the app is unsigned (a jam team has no Apple developer account),
+so the first launch needs right-click → Open. If macOS says the app "is
+damaged and can't be opened", that is the download quarantine, not damage.
+Run this once in Terminal, then open it normally:
+
+```bash
+xattr -cr "/Applications/Shadow Play.app"
+```
+
+The macOS builds are made on Windows and have not been run on a real Mac
+yet; please report it if one does not start.
+
+### Building the executables
+
+```bash
+npm ci                  # the game, once
+cd desktop
+npm ci                  # Electron and the packaging tools, once
+npm run build           # Windows + both macOS zips into desktop/out/
+npm run build:win       # or just Windows
+npm run build:mac       # or just macOS
+npm run selftest        # launches the Windows build, checks title + sound
+npm start               # run the desktop app without packaging it
+```
+
+`desktop/` has its own `package.json`, so the game itself still depends on
+only `phaser` and `vite` (`SECURITY.md` rule 4). The build runs
+`npm run build` at the root and never changes anything in `src/`. Inside
+the app the game is served from a private `app://` address with the same
+Content-Security-Policy as the website, with no Node.js access in the page.
+
 ## How it is built
 
 Plain JavaScript modules, **Phaser 3.90** and **Vite** — exactly two

@@ -33,3 +33,8 @@ desktop.ini
 
 # The harness writes its screenshots here (tools/headless/README.md).
 shots/
+
+# Desktop builds (desktop/README in the main README). Each zip is 130-160 MB,
+# over GitHub's 100 MB per-file limit: share them, never commit them.
+desktop/out/
+desktop/build/

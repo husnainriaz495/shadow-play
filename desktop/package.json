@@ -1,0 +1,22 @@
+{
+  "name": "shadow-play-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop (Electron) wrapper for Shadow Play. Separate from the game's own package.json so the game keeps exactly two dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "start": "node scripts/stage.mjs && electron build/app",
+    "build": "node scripts/build.mjs",
+    "build:win": "node scripts/build.mjs --win",
+    "build:mac": "node scripts/build.mjs --mac",
+    "selftest": "node scripts/selftest.mjs"
+  },
+  "devDependencies": {
+    "@electron/get": "5.1.0",
+    "@electron/packager": "20.3.0",
+    "electron": "44.5.1",
+    "yauzl": "3.4.0",
+    "yazl": "3.3.1"
+  }
+}

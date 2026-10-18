@@ -26,6 +26,7 @@
 | **Engine** | Phaser **3.90.0** (not 4 — see Gotchas) |
 | **Deadline** | **Sun 18 Oct 2026, 09:30 PKT** (aim 09:00). **Feature freeze Sat 17 Oct, 23:30** — after that, trailer only. Timeline: `PRD.md` §11 |
 | **Shipping acts** | **All five**: I Tiny, II The Giant, III Moths to the Flame, IV The Draft, Finale The Last Act. The order IS `ACTS` in `levels/index.js` |
+| **Desktop builds** | `desktop/` (Electron) makes a Windows zip and two macOS zips into `desktop/out/` (git-ignored). `cd desktop && npm ci && npm run build`, then `npm run selftest`. Windows tested; **macOS built on Windows, never run on a Mac** |
 | **Next task** | **RECORD THE TRAILER.** All five acts are now redesigned and tested (Act I teaches the keys and has lantern checkpoints, Act II's gate is timed, Act III has lure lanterns, Act IV has the ride-the-gust gap, Act V has the final exam). It is the round-one submission and 30% of the score, and the deadline is 09:30 today. All five acts play, Act I teaches the keys, Act II's gate is timed. The two remaining redesign items -- Act III's moth-luring lanterns and Act V's combined final section -- are improvements to acts that already work, so they only happen if the trailer is cut and uploaded with time to spare. Still outstanding either way: **no human has played Acts III and IV, the act cards or the ending** |
 
 **What you see if you run it now:** the title screen in the Midnight Teal
@@ -122,12 +123,48 @@ and fill in `music_theme`'s title and author in CREDITS.md.
    link. Then **freeze**.
 5. **Off-shift, before Sat 20:00:** write the shot list (`PRD.md` §12) and
    film the real-candle teaser shots.
+6. **Desktop builds:** somebody with a Mac should unzip
+   `ShadowPlay-mac-arm64.zip` and check it opens (README "Play the game:
+   executables"). Upload the three zips as a GitHub Release, never commit them.
 
 ---
 
 ## Build log
 
 Newest first. One entry per finished feature.
+
+### 2026-10-18 - Desktop executables (Windows + macOS)
+*Claude Code*
+
+- **New `desktop/` folder**, an Electron wrapper with its own
+  `package.json` (Electron 44.5.1, @electron/packager, @electron/get,
+  yazl, yauzl, all pinned). The game's root `package.json` is untouched,
+  so the web game still has only phaser + vite. **Nothing in `src/`
+  changed.**
+- `desktop/main.js` opens one 1280x720 window and serves `dist/` from a
+  private `app://game/` address with the same CSP as `vercel.json`:
+  sandboxed, no Node in the page, no navigation, no pop-ups, autoplay
+  allowed so the title music starts without a click.
+- `npm run build` (in `desktop/`) runs the root `npm run build`, stages
+  `build/app/`, then writes to `desktop/out/`: `ShadowPlay-win-x64.zip`
+  (159 MB), `ShadowPlay-mac-arm64.zip` (132 MB), `ShadowPlay-mac-x64.zip`
+  (134 MB), plus the unzipped Windows folder (374 MB, exe 234 MB).
+- **macOS is built on Windows without unzipping anything**: the script
+  reads Electron's official macOS zip entry by entry and writes a new zip
+  with the game added, the Info.plist renamed and the candle icon.
+  Checked: 14 framework symlinks kept, the executable keeps mode 755. The
+  app is unsigned; README says right-click -> Open / `xattr -cr`.
+- `npm run selftest` launches the packaged exe with
+  `SHADOW_PLAY_SELFTEST` set: it screenshots the title, records
+  `audio-state-changed`, and quits. Result: title drawn, audible at 4.0 s,
+  no console errors. Without that variable the self-test code never runs.
+- Icons are the 64 px favicon wrapped as .ico/.icns in code (no image
+  library). A bigger square icon would look sharper on the taskbar/Dock.
+- Not done: the menu's QUIT still does the browser "bow"; closing the
+  window quits the app.
+
+**Files:** desktop/package.json, desktop/package-lock.json, desktop/main.js,
+desktop/scripts/{stage,build,selftest}.mjs, .gitignore, README.md
 
 ### 2026-10-18 - The credits name the team, and the columns line up
 *Claude Code - uncommitted at the time of writing*
@@ -1268,6 +1305,12 @@ all five scenes, `ui/WaxCandle.js`, `ui/SizeDots.js`
 ---
 
 ## Gotchas (do not learn these twice)
+
+- **Never commit `desktop/out/`.** Every zip is over GitHub's 100 MB per-file
+  limit and a push with one fails. It is git-ignored; share builds as a
+  GitHub Release. **@electron/packager cannot make a macOS app on Windows**
+  (an .app is full of symlinks Windows cannot write), which is why
+  `desktop/scripts/build.mjs` copies Electron's mac zip entry by entry instead.
 
 - **A half-dead test browser looks like a broken game.** Chrome keeps
   answering `/json/version` for a second or two after `Browser.close`, so
