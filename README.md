@@ -105,6 +105,9 @@ window.
 | `ShadowPlay-mac-arm64.zip` | Macs with Apple Silicon (M1 and newer) | ~132 MB | Unzip, then right-click **`Shadow Play.app`** → **Open** → **Open** |
 | `ShadowPlay-mac-x64.zip` | Intel Macs | ~134 MB | Same as above |
 
+**Download them from the
+[v1.0 release](https://github.com/husnainriaz495/shadow-play/releases/tag/v1.0).**
+
 The executables are **not in the git repo**: each one is bigger than
 GitHub's 100 MB per-file limit. They are shared as release downloads
 instead, or you can build them yourself (below).
